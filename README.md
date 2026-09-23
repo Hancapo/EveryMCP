@@ -8,7 +8,7 @@ A native Rust MCP server with **112 tools** for mathematics, reverse engineering
 cargo build --release --locked
 ```
 
-Use `target/release/EveryMCP.exe` on Windows or `target/release/EveryMCP` on Linux and macOS. The server uses MCP over stdio.
+Use `target/release/EveryMCP.exe` on Windows or `target/release/EveryMCP` on Linux and macOS. The server uses MCP over stdio and supports both legacy `2025-06-18` initialization and `2026-07-28` per-request metadata.
 
 Example client configuration:
 

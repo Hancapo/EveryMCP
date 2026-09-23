@@ -52,6 +52,44 @@ class McpTests(unittest.TestCase):
         self.assertFalse(result.get("isError", False), result)
         return json.loads(result["content"][0]["text"])
 
+    @staticmethod
+    def modern_params(**extra):
+        return {"_meta": {"io.modelcontextprotocol/protocolVersion": "2026-07-28",
+                          "io.modelcontextprotocol/clientCapabilities": {}}, **extra}
+
+    def test_modern_protocol_discovery_and_tools(self):
+        discovered = self.request("server/discover", self.modern_params())["result"]
+        self.assertEqual(discovered["resultType"], "complete")
+        self.assertIn("2026-07-28", discovered["supportedVersions"])
+        self.assertIn("2025-06-18", discovered["supportedVersions"])
+        self.assertEqual(discovered["_meta"]["io.modelcontextprotocol/serverInfo"]["name"], "EveryMCP")
+        listed = self.request("tools/list", self.modern_params())["result"]
+        self.assertEqual(listed["resultType"], "complete")
+        self.assertEqual(len(listed["tools"]), 112)
+        called = self.request("tools/call", self.modern_params(name="add", arguments={
+            "firstNumber": 2, "secondNumber": 3}))["result"]
+        self.assertEqual(called["resultType"], "complete")
+        self.assertEqual(json.loads(called["content"][0]["text"])["value"], 5)
+        pinged = self.request("ping", self.modern_params())["result"]
+        self.assertEqual(pinged["resultType"], "complete")
+        failed = self.request("tools/call", self.modern_params(name="division", arguments={
+            "numerator": 1, "denominator": 0}))["result"]
+        self.assertEqual(failed["resultType"], "complete")
+        self.assertTrue(failed["isError"])
+
+    def test_modern_protocol_validation(self):
+        missing = self.request("tools/list", {"_meta": {
+            "io.modelcontextprotocol/protocolVersion": "2026-07-28"}})
+        self.assertEqual(missing["error"]["code"], -32602)
+        unsupported = self.request("tools/list", {"_meta": {
+            "io.modelcontextprotocol/protocolVersion": "2099-01-01",
+            "io.modelcontextprotocol/clientCapabilities": {}}})
+        self.assertEqual(unsupported["error"]["code"], -32022)
+        self.assertEqual(unsupported["error"]["data"]["requested"], "2099-01-01")
+        self.assertEqual(unsupported["error"]["data"]["supported"], ["2026-07-28", "2025-06-18"])
+        bad_cursor = self.request("tools/list", self.modern_params(cursor="invalid"))
+        self.assertEqual(bad_cursor["error"]["code"], -32602)
+
     def test_initialize_and_catalog(self):
         response = self.request("initialize", {"protocolVersion": "2025-06-18", "capabilities": {},
                                                "clientInfo": {"name": "test", "version": "1"}})

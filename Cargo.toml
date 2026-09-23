@@ -1,6 +1,6 @@
 [package]
 name = "everymcp"
-version = "1.6.0"
+version = "1.7.0"
 edition = "2024"
 description = "Native multi-purpose MCP server for math and Windows host automation"
 
