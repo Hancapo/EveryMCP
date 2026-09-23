@@ -196,7 +196,7 @@ fn hash(args: &Value) -> Result<Value, String> {
     Ok(json!({"algorithm":algorithm,"digest":digest,"bytesHashed":count}))
 }
 
-fn manifest(args: &Value) -> Result<Value, String> {
+pub(super) fn manifest(args: &Value) -> Result<Value, String> {
     let root = Path::new(required_str(args, "root")?);
     if !root.is_dir() {
         return Err("'root' must be an existing directory.".into());

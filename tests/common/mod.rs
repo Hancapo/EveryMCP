@@ -2,7 +2,7 @@ use serde_json::{Value, json};
 use std::io::{BufRead, BufReader, Write};
 use std::process::{Command, Stdio};
 
-pub fn call(name: &str, arguments: Value) -> Value {
+pub fn response(name: &str, arguments: Value) -> Value {
     let mut child = Command::new(env!("CARGO_BIN_EXE_EveryMCP"))
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -19,6 +19,11 @@ pub fn call(name: &str, arguments: Value) -> Value {
     )
     .unwrap();
     assert!(child.wait().unwrap().success());
+    response
+}
+
+pub fn call(name: &str, arguments: Value) -> Value {
+    let response = response(name, arguments);
     assert_eq!(response["result"]["isError"], false, "{response}");
     serde_json::from_str(response["result"]["content"][0]["text"].as_str().unwrap()).unwrap()
 }

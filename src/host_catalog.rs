@@ -12,6 +12,47 @@ type ToolSpec = (
 pub fn append(tools: &mut Vec<Value>) {
     let specs: &[ToolSpec] = &[
         (
+            "artifact_manifest",
+            "Hash a directory into a stable artifact snapshot, optionally saving JSON outside or inside the tree.",
+            &[("root", "string")],
+            &[
+                ("outputPath", "string"),
+                ("includeEntries", "boolean"),
+                ("limit", "integerNumber"),
+                ("overwrite", "boolean"),
+            ],
+            false,
+            false,
+        ),
+        (
+            "manifest_diff",
+            "Compare two directories or saved artifact manifest JSON files by relative path, type, size and SHA-256.",
+            &[("left", "string"), ("right", "string")],
+            &[("limit", "integerNumber")],
+            true,
+            true,
+        ),
+        (
+            "diagnostics_parse",
+            "Normalize common compiler and build diagnostics from text or a log file into file, line, severity, code and message.",
+            &[],
+            &[
+                ("text", "string"),
+                ("path", "string"),
+                ("limit", "integerNumber"),
+            ],
+            true,
+            true,
+        ),
+        (
+            "test_results_parse",
+            "Summarize JUnit XML, Visual Studio TRX or TAP test results and return bounded failure details.",
+            &[("path", "string")],
+            &[("format", "string"), ("limit", "integerNumber")],
+            true,
+            true,
+        ),
+        (
             "structured_data_query",
             "Read JSON, TOML, YAML, XML or CSV and select a value using an RFC 6901 JSON Pointer.",
             &[("path", "string")],

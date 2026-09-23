@@ -65,7 +65,7 @@ class McpTests(unittest.TestCase):
         self.assertEqual(discovered["_meta"]["io.modelcontextprotocol/serverInfo"]["name"], "EveryMCP")
         listed = self.request("tools/list", self.modern_params())["result"]
         self.assertEqual(listed["resultType"], "complete")
-        self.assertEqual(len(listed["tools"]), 120)
+        self.assertEqual(len(listed["tools"]), 124)
         called = self.request("tools/call", self.modern_params(name="add", arguments={
             "firstNumber": 2, "secondNumber": 3}))["result"]
         self.assertEqual(called["resultType"], "complete")
@@ -128,7 +128,8 @@ class McpTests(unittest.TestCase):
                             "eventlog_follow", "performance_sample", "acl_get",
                             "workspace_scan", "repo_status_batch", "command_pipeline",
                             "environment_snapshot", "file_watch", "structured_data_query",
-                            "structured_data_diff", "dependency_inventory"})
+                            "structured_data_diff", "dependency_inventory", "artifact_manifest",
+                            "manifest_diff", "diagnostics_parse", "test_results_parse"})
         for tool in tools:
             self.assertEqual(tool["inputSchema"]["type"], "object")
         pe = next(tool for tool in tools if tool["name"] == "pe_address_map")

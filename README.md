@@ -1,6 +1,6 @@
 # EveryMCP
 
-A native Rust MCP server with **120 tools** for mathematics, reverse engineering, geometry, and local system automation. It includes the 22 operations from [math-mcp](https://github.com/EthanHenrickson/math-mcp) with their original names and arguments; no code or dependencies are copied from that project.
+A native Rust MCP server with **124 tools** for mathematics, reverse engineering, geometry, and local system automation. It includes the 22 operations from [math-mcp](https://github.com/EthanHenrickson/math-mcp) with their original names and arguments; no code or dependencies are copied from that project.
 
 ## Build
 
@@ -37,6 +37,7 @@ Example client configuration:
 | Telemetry | Sample CPU, memory, network transfer, and disk capacity. |
 | Workspace | Discover projects and Git status, run command pipelines, capture environments, and wait for file changes. |
 | Structured data | Query and compare JSON, TOML, YAML, XML and CSV; inventory declared and resolved dependencies. |
+| Artifacts and diagnostics | Save and compare hashed directory snapshots; parse compiler diagnostics and JUnit, TRX or TAP test reports. |
 
 Call `tools/list` for the complete tool catalog and JSON schemas. For example:
 
