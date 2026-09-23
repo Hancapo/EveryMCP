@@ -12,6 +12,55 @@ type ToolSpec = (
 pub fn append(tools: &mut Vec<Value>) {
     let specs: &[ToolSpec] = &[
         (
+            "workspace_scan",
+            "Discover repositories and build manifests beneath a directory without entering generated output directories.",
+            &[("root", "string")],
+            &[("maxDepth", "integerNumber"), ("limit", "integerNumber")],
+            true,
+            true,
+        ),
+        (
+            "repo_status_batch",
+            "Summarize branch, HEAD, changed files and linked worktrees for repositories beneath a directory.",
+            &[("root", "string")],
+            &[("maxDepth", "integerNumber"), ("limit", "integerNumber")],
+            true,
+            true,
+        ),
+        (
+            "command_pipeline",
+            "Run up to 32 explicit executable steps in order, capturing bounded output and stopping at failure by default.",
+            &[("steps", "pipelineSteps")],
+            &[("continueOnError", "boolean")],
+            false,
+            false,
+        ),
+        (
+            "environment_snapshot",
+            "Capture OS identity, selected environment variables and bounded executable version probes.",
+            &[],
+            &[
+                ("executables", "string[]"),
+                ("variables", "string[]"),
+                ("versionArguments", "string[]"),
+            ],
+            true,
+            true,
+        ),
+        (
+            "file_watch",
+            "Wait for added, removed or metadata-modified files beneath a directory; return bounded change events.",
+            &[("root", "string")],
+            &[
+                ("recursive", "boolean"),
+                ("timeoutMs", "integerNumber"),
+                ("intervalMs", "integerNumber"),
+                ("limit", "integerNumber"),
+            ],
+            true,
+            true,
+        ),
+        (
             "process_start",
             "Start a process with separate executable and argument array; retain bounded output for process_output.",
             &[("executable", "string")],
@@ -402,9 +451,10 @@ pub fn append(tools: &mut Vec<Value>) {
     ];
     for &(name, description, required, optional, read_only, idempotent) in specs {
         crate::catalog::add_extra(tools, name, description, required, optional);
+        let may_execute = matches!(name, "environment_snapshot");
         tools.last_mut().unwrap()["annotations"] = json!({
-            "readOnlyHint": read_only,
-            "destructiveHint": !read_only,
+            "readOnlyHint": read_only && !may_execute,
+            "destructiveHint": !read_only || may_execute,
             "idempotentHint": idempotent,
             "openWorldHint": true
         });

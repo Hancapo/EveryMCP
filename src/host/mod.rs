@@ -6,6 +6,7 @@ mod performance;
 mod process;
 mod wait;
 mod windows;
+mod workspace;
 
 use serde_json::Value;
 
@@ -26,6 +27,11 @@ pub fn execute(name: &str, args: &Value) -> Result<Value, String> {
             files::execute(name, args)
         }
         "archive_create" | "archive_extract" => archive::execute(name, args),
+        "workspace_scan"
+        | "repo_status_batch"
+        | "command_pipeline"
+        | "environment_snapshot"
+        | "file_watch" => workspace::execute(name, args),
         "process_modules" | "port_owner" | "service_get" | "service_control" | "eventlog_query"
         | "registry_read" | "environment_get" | "powershell_run" | "file_signature"
         | "scheduled_task" | "eventlog_follow" | "acl_get" => windows::execute(name, args),
