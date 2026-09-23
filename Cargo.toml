@@ -24,6 +24,10 @@ ureq = "3.4.2"
 hickory-resolver = "0.26.3"
 tokio = { version = "1.53.1", features = ["rt", "time", "net"] }
 native-tls = "0.2.18"
+toml = "1.1.6"
+serde_yaml_ng = "0.10.0"
+roxmltree = "0.21.1"
+csv = "1.4.0"
 
 [profile.release]
 lto = true

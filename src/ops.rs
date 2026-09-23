@@ -57,7 +57,10 @@ pub fn execute(name: &str, args: &Value) -> Result<Value, String> {
         | "repo_status_batch"
         | "command_pipeline"
         | "environment_snapshot"
-        | "file_watch" => crate::host::execute(name, args),
+        | "file_watch"
+        | "structured_data_query"
+        | "structured_data_diff"
+        | "dependency_inventory" => crate::host::execute(name, args),
         "add" | "subtract" | "multiply" | "division" | "modulo" | "sum" | "mean" | "median"
         | "mode" | "min" | "max" | "floor" | "ceiling" | "round" | "sin" | "arcsin" | "cos"
         | "arccos" | "tan" | "arctan" | "radiansToDegrees" | "degreesToRadians" => {

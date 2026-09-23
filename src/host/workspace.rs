@@ -43,7 +43,7 @@ pub fn execute(name: &str, args: &Value) -> Result<Value, String> {
     }
 }
 
-fn directory(args: &Value) -> Result<PathBuf, String> {
+pub(super) fn directory(args: &Value) -> Result<PathBuf, String> {
     let path = PathBuf::from(required_str(args, "root")?);
     if !path.is_dir() {
         return Err("'root' must name an existing directory.".into());
@@ -57,7 +57,7 @@ fn directory(args: &Value) -> Result<PathBuf, String> {
     }
 }
 
-fn project_map(
+pub(super) fn project_map(
     root: &Path,
     max_depth: usize,
 ) -> Result<BTreeMap<PathBuf, (BTreeSet<String>, bool)>, String> {
