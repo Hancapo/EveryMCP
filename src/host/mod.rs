@@ -1,4 +1,6 @@
 mod archive;
+mod data;
+mod dependencies;
 mod files;
 mod inspect;
 mod network;
@@ -32,6 +34,8 @@ pub fn execute(name: &str, args: &Value) -> Result<Value, String> {
         | "command_pipeline"
         | "environment_snapshot"
         | "file_watch" => workspace::execute(name, args),
+        "structured_data_query" | "structured_data_diff" => data::execute(name, args),
+        "dependency_inventory" => dependencies::execute(args),
         "process_modules" | "port_owner" | "service_get" | "service_control" | "eventlog_query"
         | "registry_read" | "environment_get" | "powershell_run" | "file_signature"
         | "scheduled_task" | "eventlog_follow" | "acl_get" => windows::execute(name, args),

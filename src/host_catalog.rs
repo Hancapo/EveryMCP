@@ -12,6 +12,34 @@ type ToolSpec = (
 pub fn append(tools: &mut Vec<Value>) {
     let specs: &[ToolSpec] = &[
         (
+            "structured_data_query",
+            "Read JSON, TOML, YAML, XML or CSV and select a value using an RFC 6901 JSON Pointer.",
+            &[("path", "string")],
+            &[("format", "string"), ("pointer", "string")],
+            true,
+            true,
+        ),
+        (
+            "structured_data_diff",
+            "Compare two JSON, TOML, YAML, XML or CSV documents and report bounded pointer-addressed changes.",
+            &[("leftPath", "string"), ("rightPath", "string")],
+            &[
+                ("format", "string"),
+                ("pointer", "string"),
+                ("limit", "integerNumber"),
+            ],
+            true,
+            true,
+        ),
+        (
+            "dependency_inventory",
+            "Inventory direct dependencies and available lock or local install versions in Cargo, Python, npm and NuGet projects.",
+            &[("root", "string")],
+            &[("maxDepth", "integerNumber"), ("limit", "integerNumber")],
+            true,
+            true,
+        ),
+        (
             "workspace_scan",
             "Discover repositories and build manifests beneath a directory without entering generated output directories.",
             &[("root", "string")],
