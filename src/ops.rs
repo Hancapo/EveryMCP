@@ -61,6 +61,9 @@ pub fn execute(name: &str, args: &Value) -> Result<Value, String> {
         | "structured_data_query"
         | "structured_data_diff"
         | "dependency_inventory" => crate::host::execute(name, args),
+        "artifact_manifest" | "manifest_diff" | "diagnostics_parse" | "test_results_parse" => {
+            crate::host::execute(name, args)
+        }
         "add" | "subtract" | "multiply" | "division" | "modulo" | "sum" | "mean" | "median"
         | "mode" | "min" | "max" | "floor" | "ceiling" | "round" | "sin" | "arcsin" | "cos"
         | "arccos" | "tan" | "arctan" | "radiansToDegrees" | "degreesToRadians" => {
