@@ -101,6 +101,104 @@ fn file_signature(args: &Value) -> Result<Value, String> {
     powershell_json(&body, args, 30000)
 }
 
+fn acl_get(args: &Value) -> Result<Value, String> {
+    let path = required_str(args, "path")?;
+    if !Path::new(path).exists() {
+        return Err("'path' does not exist.".into());
+    }
+    let body = format!(
+        "{SECURITY_MODULE} $acl = Get-Acl -LiteralPath ([string]$a.path) -ErrorAction Stop; [pscustomobject]@{{ path=$a.path; owner=$acl.Owner; group=$acl.Group; sddl=$acl.Sddl; access=@($acl.Access | ForEach-Object {{ [pscustomobject]@{{ identity=[string]$_.IdentityReference; rights=[string]$_.FileSystemRights; type=[string]$_.AccessControlType; inherited=$_.IsInherited }} }}) }}"
+    );
+    powershell_json(&body, args, 30000)
+}
+
+fn scheduled_task(args: &Value) -> Result<Value, String> {
+    let operation = required_str(args, "operation")?;
+    if ![
+        "list",
+        "get",
+        "run",
+        "stop",
+        "enable",
+        "disable",
+        "register",
+        "unregister",
+    ]
+    .contains(&operation)
+    {
+        return Err("Unsupported scheduled task operation.".into());
+    }
+    let limit = optional_u64(args, "limit", 100, 1000)?;
+    if limit == 0 {
+        return Err("'limit' must be at least 1.".into());
+    }
+    if operation != "list" {
+        required_str(args, "name")?;
+    }
+    let mut data = args.clone();
+    data["limit"] = json!(limit);
+    if data.get("taskPath").is_none() {
+        data["taskPath"] = json!("\\");
+    }
+    match operation {
+        "list" => powershell_json(
+            "$rows = Get-ScheduledTask -ErrorAction Stop | Where-Object { -not $a.name -or $_.TaskName -like ('*' + [string]$a.name + '*') } | Select-Object -First ([int]$a.limit) | ForEach-Object { [pscustomobject]@{ name=$_.TaskName; taskPath=$_.TaskPath; state=[string]$_.State } }; [pscustomobject]@{ tasks=@($rows) }",
+            &data,
+            60000,
+        ),
+        "get" => powershell_json(
+            "$task = Get-ScheduledTask -TaskName ([string]$a.name) -TaskPath ([string]$a.taskPath) -ErrorAction Stop; $info = Get-ScheduledTaskInfo -InputObject $task -ErrorAction Stop; [pscustomobject]@{ name=$task.TaskName; taskPath=$task.TaskPath; state=[string]$task.State; enabled=$task.Settings.Enabled; actions=@($task.Actions | ForEach-Object { [pscustomobject]@{ execute=$_.Execute; arguments=$_.Arguments; workingDirectory=$_.WorkingDirectory } }); lastRunTime=$info.LastRunTime.ToString('o'); nextRunTime=$info.NextRunTime.ToString('o'); lastTaskResult=$info.LastTaskResult }",
+            &data,
+            30000,
+        ),
+        "run" | "stop" | "enable" | "disable" => powershell_json(
+            "switch ($a.operation) { 'run' { Start-ScheduledTask -TaskName ([string]$a.name) -TaskPath ([string]$a.taskPath) -ErrorAction Stop } 'stop' { Stop-ScheduledTask -TaskName ([string]$a.name) -TaskPath ([string]$a.taskPath) -ErrorAction Stop } 'enable' { Enable-ScheduledTask -TaskName ([string]$a.name) -TaskPath ([string]$a.taskPath) -ErrorAction Stop | Out-Null } 'disable' { Disable-ScheduledTask -TaskName ([string]$a.name) -TaskPath ([string]$a.taskPath) -ErrorAction Stop | Out-Null } }; $task = Get-ScheduledTask -TaskName ([string]$a.name) -TaskPath ([string]$a.taskPath) -ErrorAction Stop; [pscustomobject]@{ name=$task.TaskName; taskPath=$task.TaskPath; state=[string]$task.State; operation=$a.operation }",
+            &data,
+            60000,
+        ),
+        "register" => {
+            required_str(args, "executable")?;
+            let trigger = required_str(args, "trigger")?;
+            if !["once", "daily", "logon"].contains(&trigger) {
+                return Err("'trigger' must be once, daily or logon.".into());
+            }
+            if trigger != "logon" {
+                required_str(args, "at")?;
+            }
+            powershell_json(
+                "$action = New-ScheduledTaskAction -Execute ([string]$a.executable) -Argument ([string]$a.actionArguments); $trigger = switch ($a.trigger) { 'once' { New-ScheduledTaskTrigger -Once -At ([datetime]::Parse([string]$a.at)) } 'daily' { New-ScheduledTaskTrigger -Daily -At ([datetime]::Parse([string]$a.at)) } 'logon' { New-ScheduledTaskTrigger -AtLogOn } }; $task = Register-ScheduledTask -TaskName ([string]$a.name) -TaskPath ([string]$a.taskPath) -Action $action -Trigger $trigger -Force:([bool]$a.overwrite) -ErrorAction Stop; [pscustomobject]@{ name=$task.TaskName; taskPath=$task.TaskPath; state=[string]$task.State; operation='register' }",
+                &data,
+                60000,
+            )
+        }
+        "unregister" => powershell_json(
+            "Unregister-ScheduledTask -TaskName ([string]$a.name) -TaskPath ([string]$a.taskPath) -Confirm:$false -ErrorAction Stop; [pscustomobject]@{ name=$a.name; taskPath=$a.taskPath; operation='unregister'; removed=$true }",
+            &data,
+            60000,
+        ),
+        _ => unreachable!(),
+    }
+}
+
+fn eventlog_follow(args: &Value) -> Result<Value, String> {
+    required_str(args, "logName")?;
+    let max = optional_u64(args, "maxEvents", 20, 100)?;
+    if max == 0 {
+        return Err("'maxEvents' must be at least 1.".into());
+    }
+    if args.get("afterRecordId").is_some() && required_u64(args, "afterRecordId")? > i64::MAX as u64
+    {
+        return Err("'afterRecordId' is too large.".into());
+    }
+    let mut data = args.clone();
+    data["maxEvents"] = json!(max);
+    powershell_json(
+        "$rows = @(); try { if ($null -ne $a.afterRecordId) { $xpath = '*[System[EventRecordID > {0}]]' -f [long]$a.afterRecordId; $rows = @(Get-WinEvent -LogName ([string]$a.logName) -FilterXPath $xpath -Oldest -MaxEvents ([int]$a.maxEvents) -ErrorAction Stop) } else { $rows = @(Get-WinEvent -LogName ([string]$a.logName) -MaxEvents ([int]$a.maxEvents) -ErrorAction Stop | Sort-Object RecordId) } } catch { if ($_.FullyQualifiedErrorId -notlike 'NoMatchingEventsFound*') { throw } }; $events = @($rows | ForEach-Object { [pscustomobject]@{ recordId=$_.RecordId; id=$_.Id; provider=$_.ProviderName; level=$_.LevelDisplayName; time=$_.TimeCreated.ToString('o'); message=([string]$_.Message).Substring(0,[Math]::Min(2000,([string]$_.Message).Length)) } }); $next = if ($rows.Count -gt 0) { [long]$rows[-1].RecordId } else { $a.afterRecordId }; [pscustomobject]@{ logName=$a.logName; events=$events; nextRecordId=$next }",
+        &data,
+        30000,
+    )
+}
+
 fn modules(args: &Value) -> Result<Value, String> {
     let pid = required_u64(args, "pid")?;
     if pid > u32::MAX as u64 {
@@ -213,6 +311,9 @@ pub fn execute(name: &str, args: &Value) -> Result<Value, String> {
         "environment_get" => environment_get(args),
         "powershell_run" => powershell_run(args),
         "file_signature" => file_signature(args),
+        "scheduled_task" => scheduled_task(args),
+        "eventlog_follow" => eventlog_follow(args),
+        "acl_get" => acl_get(args),
         _ => unreachable!(),
     }
 }

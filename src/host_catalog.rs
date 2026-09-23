@@ -355,6 +355,50 @@ pub fn append(tools: &mut Vec<Value>) {
             true,
             true,
         ),
+        (
+            "scheduled_task",
+            "List, inspect, run, stop, enable, disable, register or unregister Windows scheduled tasks.",
+            &[("operation", "string")],
+            &[
+                ("name", "string"),
+                ("taskPath", "string"),
+                ("limit", "integerNumber"),
+                ("executable", "string"),
+                ("actionArguments", "string"),
+                ("trigger", "string"),
+                ("at", "string"),
+                ("overwrite", "boolean"),
+            ],
+            false,
+            false,
+        ),
+        (
+            "eventlog_follow",
+            "Read Windows event log entries after a record ID and return the next cursor.",
+            &[("logName", "string")],
+            &[
+                ("afterRecordId", "integerNumber"),
+                ("maxEvents", "integerNumber"),
+            ],
+            true,
+            true,
+        ),
+        (
+            "performance_sample",
+            "Sample CPU, memory and network transfer over an interval; include disk capacity.",
+            &[],
+            &[("sampleMs", "integerNumber")],
+            true,
+            true,
+        ),
+        (
+            "acl_get",
+            "Read a Windows file or directory owner, SDDL and access entries.",
+            &[("path", "string")],
+            &[],
+            true,
+            true,
+        ),
     ];
     for &(name, description, required, optional, read_only, idempotent) in specs {
         crate::catalog::add_extra(tools, name, description, required, optional);

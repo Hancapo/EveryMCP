@@ -1,6 +1,6 @@
 # EveryMCP
 
-A native Rust MCP server with **108 tools** for mathematics, reverse engineering, geometry, and local system automation. It includes the 22 operations from [math-mcp](https://github.com/EthanHenrickson/math-mcp) with their original names and arguments; no code or dependencies are copied from that project.
+A native Rust MCP server with **112 tools** for mathematics, reverse engineering, geometry, and local system automation. It includes the 22 operations from [math-mcp](https://github.com/EthanHenrickson/math-mcp) with their original names and arguments; no code or dependencies are copied from that project.
 
 ## Build
 
@@ -33,7 +33,8 @@ Example client configuration:
 | Files and ZIP | Find and search files, read byte ranges, hash, write, patch with preconditions, copy, move, create ZIP archives, and extract them. |
 | HTTP and readiness | Make bounded HTTP requests, query DNS, probe TCP/TLS, and wait for files, process exits, TCP ports, or HTTP status. |
 | Inspection | Resolve executables, inventory directories with hashes, and inspect Windows file signatures. |
-| Windows | Port ownership, services, event logs, registry values, environment variables, and PowerShell execution. |
+| Windows | Port ownership, services, scheduled tasks, event logs, ACLs, registry values, environment variables, and PowerShell execution. |
+| Telemetry | Sample CPU, memory, network transfer, and disk capacity. |
 
 Call `tools/list` for the complete tool catalog and JSON schemas. For example:
 

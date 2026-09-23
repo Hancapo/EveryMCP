@@ -2,6 +2,7 @@ mod archive;
 mod files;
 mod inspect;
 mod network;
+mod performance;
 mod process;
 mod wait;
 mod windows;
@@ -19,15 +20,15 @@ pub fn execute(name: &str, args: &Value) -> Result<Value, String> {
         "network_probe" => network::probe(args),
         "dns_query" => network::dns_query(args),
         "executable_resolve" => inspect::executable_resolve(args),
+        "performance_sample" => performance::sample(args),
         "file_find" | "text_search" | "file_stat" | "file_hash" | "file_read_range"
         | "file_write_atomic" | "file_copy_move" | "file_patch" | "directory_manifest" => {
             files::execute(name, args)
         }
         "archive_create" | "archive_extract" => archive::execute(name, args),
         "process_modules" | "port_owner" | "service_get" | "service_control" | "eventlog_query"
-        | "registry_read" | "environment_get" | "powershell_run" | "file_signature" => {
-            windows::execute(name, args)
-        }
+        | "registry_read" | "environment_get" | "powershell_run" | "file_signature"
+        | "scheduled_task" | "eventlog_follow" | "acl_get" => windows::execute(name, args),
         _ => Err(format!("Unknown host tool '{name}'.")),
     }
 }
