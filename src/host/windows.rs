@@ -1,6 +1,9 @@
 use super::{optional_str, optional_u64, required_str, required_u64};
 use serde_json::{Value, json};
+use std::path::Path;
 use std::process::Command;
+
+const SECURITY_MODULE: &str = "Import-Module ($PSHOME + '/Modules/Microsoft.PowerShell.Security/Microsoft.PowerShell.Security.psd1') -ErrorAction Stop;";
 
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
@@ -75,6 +78,27 @@ fn powershell_json(body: &str, args: &Value, timeout: u64) -> Result<Value, Stri
     }
     serde_json::from_str(output["stdout"].as_str().unwrap_or(""))
         .map_err(|e| format!("PowerShell returned invalid JSON: {e}"))
+}
+
+pub(super) fn file_version(path: &Path) -> Result<Option<String>, String> {
+    let data = json!({"path":path.to_string_lossy()});
+    let value = powershell_json(
+        "$info = [System.Diagnostics.FileVersionInfo]::GetVersionInfo([string]$a.path); [pscustomobject]@{ fileVersion=$info.FileVersion }",
+        &data,
+        15000,
+    )?;
+    Ok(value["fileVersion"].as_str().map(str::to_owned))
+}
+
+fn file_signature(args: &Value) -> Result<Value, String> {
+    let path = required_str(args, "path")?;
+    if !Path::new(path).is_file() {
+        return Err("'path' must be an existing file.".into());
+    }
+    let body = format!(
+        "{SECURITY_MODULE} $sig = Get-AuthenticodeSignature -LiteralPath ([string]$a.path) -ErrorAction Stop; $info = [System.Diagnostics.FileVersionInfo]::GetVersionInfo([string]$a.path); [pscustomobject]@{{ path=$a.path; status=[string]$sig.Status; statusMessage=$sig.StatusMessage; signerSubject=$sig.SignerCertificate.Subject; signerThumbprint=$sig.SignerCertificate.Thumbprint; fileVersion=$info.FileVersion; productVersion=$info.ProductVersion }}"
+    );
+    powershell_json(&body, args, 30000)
 }
 
 fn modules(args: &Value) -> Result<Value, String> {
@@ -188,6 +212,7 @@ pub fn execute(name: &str, args: &Value) -> Result<Value, String> {
         "registry_read" => registry_read(args),
         "environment_get" => environment_get(args),
         "powershell_run" => powershell_run(args),
+        "file_signature" => file_signature(args),
         _ => unreachable!(),
     }
 }

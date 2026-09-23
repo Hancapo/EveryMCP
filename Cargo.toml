@@ -1,6 +1,6 @@
 [package]
 name = "everymcp"
-version = "1.4.0"
+version = "1.5.0"
 edition = "2024"
 description = "Native multi-purpose MCP server for math and Windows host automation"
 
@@ -21,6 +21,9 @@ sha2 = "0.11.0"
 tempfile = "3.27.0"
 zip = { version = "8.6.0", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 ureq = "3.4.2"
+hickory-resolver = "0.26.3"
+tokio = { version = "1.53.1", features = ["rt", "time", "net"] }
+native-tls = "0.2.18"
 
 [profile.release]
 lto = true

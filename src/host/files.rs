@@ -17,6 +17,7 @@ pub fn execute(name: &str, args: &Value) -> Result<Value, String> {
         "file_read_range" => read_range(args),
         "file_write_atomic" => write_atomic(args),
         "file_patch" => patch(args),
+        "directory_manifest" => manifest(args),
         "file_copy_move" => copy_move(args),
         _ => unreachable!(),
     }
@@ -147,7 +148,7 @@ fn search(args: &Value) -> Result<Value, String> {
     Ok(json!({"matches":matches,"limitReached":false,"skippedFiles":skipped}))
 }
 
-fn digest_hex(bytes: &[u8]) -> String {
+pub(super) fn digest_hex(bytes: &[u8]) -> String {
     const HEX: &[u8; 16] = b"0123456789abcdef";
     let mut text = String::with_capacity(bytes.len() * 2);
     for &byte in bytes {
@@ -157,9 +158,7 @@ fn digest_hex(bytes: &[u8]) -> String {
     text
 }
 
-fn hash(args: &Value) -> Result<Value, String> {
-    let path = required_str(args, "path")?;
-    let algorithm = optional_str(args, "algorithm")?.unwrap_or("sha256");
+fn hash_file(path: &Path, algorithm: &str) -> Result<(String, u64), String> {
     let mut file = File::open(path).map_err(|e| io_error("Cannot open file", e))?;
     let mut buffer = [0u8; 65536];
     let mut count = 0u64;
@@ -187,7 +186,69 @@ fn hash(args: &Value) -> Result<Value, String> {
     } else {
         digest_hex(&sha512.finalize())
     };
+    Ok((digest, count))
+}
+
+fn hash(args: &Value) -> Result<Value, String> {
+    let path = Path::new(required_str(args, "path")?);
+    let algorithm = optional_str(args, "algorithm")?.unwrap_or("sha256");
+    let (digest, count) = hash_file(path, algorithm)?;
     Ok(json!({"algorithm":algorithm,"digest":digest,"bytesHashed":count}))
+}
+
+fn manifest(args: &Value) -> Result<Value, String> {
+    let root = Path::new(required_str(args, "root")?);
+    if !root.is_dir() {
+        return Err("'root' must be an existing directory.".into());
+    }
+    let hash_files = optional_bool(args, "hashFiles", false)?;
+    let limit = optional_u64(args, "limit", 1000, 10000)? as usize;
+    if limit == 0 {
+        return Err("'limit' must be at least 1.".into());
+    }
+    let mut entries = Vec::new();
+    let mut file_count = 0;
+    let mut directory_count = 0;
+    let mut total_bytes = 0u64;
+    for entry in WalkDir::new(root).sort_by_file_name().into_iter().skip(1) {
+        let entry = entry.map_err(|e| io_error("Cannot traverse directory", e))?;
+        let relative = entry
+            .path()
+            .strip_prefix(root)
+            .map_err(|e| e.to_string())?
+            .to_string_lossy()
+            .replace('\\', "/");
+        let kind = if entry.file_type().is_file() {
+            "file"
+        } else if entry.file_type().is_dir() {
+            "directory"
+        } else {
+            "symlink"
+        };
+        let metadata =
+            fs::symlink_metadata(entry.path()).map_err(|e| io_error("Cannot inspect entry", e))?;
+        let size = if kind == "file" { metadata.len() } else { 0 };
+        let digest = if kind == "file" && hash_files {
+            Some(hash_file(entry.path(), "sha256")?.0)
+        } else {
+            None
+        };
+        if kind == "file" {
+            file_count += 1;
+            total_bytes += size;
+        }
+        if kind == "directory" {
+            directory_count += 1;
+        }
+        entries.push(json!({"path":relative,"kind":kind,"sizeBytes":size,"modifiedUnixMs":modified_ms(&metadata),"sha256":digest}));
+        if entries.len() >= limit {
+            break;
+        }
+    }
+    let limit_reached = entries.len() >= limit;
+    Ok(
+        json!({"root":root.to_string_lossy(),"entries":entries,"fileCount":file_count,"directoryCount":directory_count,"totalBytes":total_bytes,"limitReached":limit_reached}),
+    )
 }
 
 fn read_range(args: &Value) -> Result<Value, String> {

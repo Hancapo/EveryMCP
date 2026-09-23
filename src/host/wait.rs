@@ -1,6 +1,5 @@
 use super::{optional_u64, required_str, required_u64};
 use serde_json::{Value, json};
-use std::net::{TcpStream, ToSocketAddrs};
 use std::path::Path;
 use std::thread;
 use std::time::{Duration, Instant};
@@ -53,20 +52,10 @@ pub fn execute(args: &Value) -> Result<Value, String> {
             "tcp" => {
                 let host = required_str(args, "host")?;
                 let port = validate_port(args)?;
-                let mut connected = false;
-                let mut detail = Value::Null;
-                match (host, port).to_socket_addrs() {
-                    Ok(addresses) => {
-                        for address in addresses {
-                            if TcpStream::connect_timeout(&address, probe_timeout).is_ok() {
-                                connected = true;
-                                break;
-                            }
-                        }
-                    }
-                    Err(error) => detail = json!({"error":error.to_string()}),
+                match super::network::connect_tcp(host, port, probe_timeout) {
+                    Ok(_) => (true, Value::Null),
+                    Err(error) => (false, json!({"error":error})),
                 }
-                (connected, detail)
             }
             "http" => {
                 let expected = optional_u64(args, "expectedStatus", 200, 599)?;
