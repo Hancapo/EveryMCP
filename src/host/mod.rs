@@ -1,6 +1,8 @@
 mod archive;
 mod files;
+mod network;
 mod process;
+mod wait;
 mod windows;
 
 use serde_json::Value;
@@ -8,11 +10,13 @@ use serde_json::Value;
 pub fn execute(name: &str, args: &Value) -> Result<Value, String> {
     match name {
         "process_start" | "process_run" | "process_get" | "process_list" | "process_tree"
-        | "process_wait" | "process_output" | "process_stop" | "system_info" => {
+        | "process_wait" | "process_output" | "process_input" | "process_stop" | "system_info" => {
             process::execute(name, args)
         }
+        "wait_for" => wait::execute(args),
+        "http_request" => network::request(args),
         "file_find" | "text_search" | "file_stat" | "file_hash" | "file_read_range"
-        | "file_write_atomic" | "file_copy_move" => files::execute(name, args),
+        | "file_write_atomic" | "file_copy_move" | "file_patch" => files::execute(name, args),
         "archive_create" | "archive_extract" => archive::execute(name, args),
         "process_modules" | "port_owner" | "service_get" | "service_control" | "eventlog_query"
         | "registry_read" | "environment_get" | "powershell_run" => windows::execute(name, args),

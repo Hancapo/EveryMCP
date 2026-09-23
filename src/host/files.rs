@@ -16,6 +16,7 @@ pub fn execute(name: &str, args: &Value) -> Result<Value, String> {
         "file_hash" => hash(args),
         "file_read_range" => read_range(args),
         "file_write_atomic" => write_atomic(args),
+        "file_patch" => patch(args),
         "file_copy_move" => copy_move(args),
         _ => unreachable!(),
     }
@@ -215,10 +216,7 @@ fn read_range(args: &Value) -> Result<Value, String> {
     Ok(json!({"data":output,"bytesRead":count,"encoding":encoding,"offset":offset}))
 }
 
-fn write_atomic(args: &Value) -> Result<Value, String> {
-    let path = Path::new(required_str(args, "path")?);
-    let content = required_str(args, "content")?;
-    let overwrite = optional_bool(args, "overwrite", false)?;
+fn persist_bytes(path: &Path, content: &[u8], overwrite: bool) -> Result<(), String> {
     let parent = path
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
@@ -228,7 +226,7 @@ fn write_atomic(args: &Value) -> Result<Value, String> {
     }
     let mut temp = tempfile::NamedTempFile::new_in(parent)
         .map_err(|e| io_error("Cannot create temporary file", e))?;
-    temp.write_all(content.as_bytes())
+    temp.write_all(content)
         .map_err(|e| io_error("Cannot write temporary file", e))?;
     temp.flush()
         .map_err(|e| io_error("Cannot flush temporary file", e))?;
@@ -238,7 +236,77 @@ fn write_atomic(args: &Value) -> Result<Value, String> {
         temp.persist_noclobber(path)
     };
     persist.map_err(|e| io_error("Cannot persist file", e.error))?;
+    Ok(())
+}
+
+fn write_atomic(args: &Value) -> Result<Value, String> {
+    let path = Path::new(required_str(args, "path")?);
+    let content = required_str(args, "content")?;
+    let overwrite = optional_bool(args, "overwrite", false)?;
+    persist_bytes(path, content.as_bytes(), overwrite)?;
     Ok(json!({"path":path.to_string_lossy(),"bytesWritten":content.len()}))
+}
+
+fn patch(args: &Value) -> Result<Value, String> {
+    let path = Path::new(required_str(args, "path")?);
+    let mode = optional_str(args, "mode")?.unwrap_or("text");
+    let find = required_str(args, "find")?;
+    let replace = required_str(args, "replace")?;
+    let (find, replace) = match mode {
+        "text" => (find.as_bytes().to_vec(), replace.as_bytes().to_vec()),
+        "hex" => (
+            crate::bytes::parse_hex(find)?,
+            crate::bytes::parse_hex(replace)?,
+        ),
+        _ => return Err("'mode' must be text or hex.".into()),
+    };
+    if find.is_empty() {
+        return Err("'find' must not be empty.".into());
+    }
+    let expected_matches = optional_u64(args, "expectedMatches", 1, 10000)? as usize;
+    if expected_matches == 0 {
+        return Err("'expectedMatches' must be at least 1.".into());
+    }
+    let metadata = fs::metadata(path).map_err(|e| io_error("Cannot inspect file", e))?;
+    if !metadata.is_file() || metadata.len() > 16 * 1024 * 1024 {
+        return Err("Patch target must be a file of at most 16 MiB.".into());
+    }
+    let original = fs::read(path).map_err(|e| io_error("Cannot read file", e))?;
+    let original_hash = digest_hex(&Sha256::digest(&original));
+    if let Some(expected) = optional_str(args, "expectedSha256")?
+        && !original_hash.eq_ignore_ascii_case(expected)
+    {
+        return Err("File SHA-256 does not match expectedSha256.".into());
+    }
+    let mut result = Vec::with_capacity(original.len());
+    let mut cursor = 0;
+    let mut matches = 0;
+    while cursor + find.len() <= original.len() {
+        if original[cursor..].starts_with(&find) {
+            result.extend_from_slice(&replace);
+            cursor += find.len();
+            matches += 1;
+        } else {
+            result.push(original[cursor]);
+            cursor += 1;
+        }
+        if result.len() > 16 * 1024 * 1024 {
+            return Err("Patched file would exceed 16 MiB.".into());
+        }
+    }
+    result.extend_from_slice(&original[cursor..]);
+    if result.len() > 16 * 1024 * 1024 {
+        return Err("Patched file would exceed 16 MiB.".into());
+    }
+    if matches != expected_matches {
+        return Err(format!(
+            "Expected {expected_matches} matches, found {matches}."
+        ));
+    }
+    persist_bytes(path, &result, true)?;
+    Ok(
+        json!({"path":path.to_string_lossy(),"matches":matches,"bytesWritten":result.len(),"oldSha256":original_hash,"newSha256":digest_hex(&Sha256::digest(&result))}),
+    )
 }
 
 fn copy_directory(source: &Path, destination: &Path) -> Result<u64, String> {
