@@ -90,6 +90,16 @@ class McpTests(unittest.TestCase):
         bad_cursor = self.request("tools/list", self.modern_params(cursor="invalid"))
         self.assertEqual(bad_cursor["error"]["code"], -32602)
 
+    def test_legacy_initialize_accepts_unrelated_request_meta(self):
+        response = self.request("initialize", {
+            "protocolVersion": "2025-06-18", "capabilities": {},
+            "clientInfo": {"name": "test", "version": "1"},
+            "_meta": {"progressToken": 1},
+        })
+        self.assertEqual(response["result"]["protocolVersion"], "2025-06-18")
+        listed = self.request("tools/list", {"_meta": {"progressToken": 2}})
+        self.assertEqual(len(listed["result"]["tools"]), 124)
+
     def test_initialize_and_catalog(self):
         response = self.request("initialize", {"protocolVersion": "2025-06-18", "capabilities": {},
                                                "clientInfo": {"name": "test", "version": "1"}})
