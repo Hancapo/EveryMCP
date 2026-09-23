@@ -7,6 +7,7 @@ use serde_json::{Value, json};
 pub fn execute(name: &str, args: &Value) -> Result<Value, String> {
     match name {
         "power_root_log" => power_root_log(args),
+        "integer_power" => integer_power(args),
         "exact_fraction" => exact_fraction(args),
         "gcd_extended" => gcd_extended(args),
         "modular_arithmetic" => modular_arithmetic(args),
@@ -59,6 +60,20 @@ fn power_root_log(args: &Value) -> Result<Value, String> {
         _ => return Err("Unsupported power/root/log operation.".into()),
     };
     value(result)
+}
+
+fn integer_power(args: &Value) -> Result<Value, String> {
+    let raw_base = input::string(args, "base")?;
+    if raw_base.len() > 4096 {
+        return Err("'base' must contain at most 4096 characters.".into());
+    }
+    let base = input::parse_big_integer(raw_base, "base")?;
+    let exponent = input::int(args, "exponent")?;
+    if !(0..=10_000).contains(&exponent) {
+        return Err("'exponent' must be between 0 and 10000.".into());
+    }
+    let result = exact::integer_power(&base, exponent as u32)?;
+    Ok(json!({"value":result.to_string()}))
 }
 
 fn exact_fraction(args: &Value) -> Result<Value, String> {

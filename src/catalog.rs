@@ -422,6 +422,13 @@ pub fn list() -> Vec<Value> {
     );
     add_extra(
         &mut tools,
+        "integer_power",
+        "Raise an arbitrary-size integer base to a nonnegative integer exponent exactly; decimal result is capped at 10000 digits.",
+        &[("base", "integer"), ("exponent", "integerNumber")],
+        &[],
+    );
+    add_extra(
+        &mut tools,
         "exact_fraction",
         "Exact add/subtract/multiply/divide/normalize/compare over arbitrary-size integer fraction objects.",
         &[("operation", "string"), ("a", "fraction")],

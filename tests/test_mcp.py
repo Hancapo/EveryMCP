@@ -65,7 +65,7 @@ class McpTests(unittest.TestCase):
         self.assertEqual(discovered["_meta"]["io.modelcontextprotocol/serverInfo"]["name"], "EveryMCP")
         listed = self.request("tools/list", self.modern_params())["result"]
         self.assertEqual(listed["resultType"], "complete")
-        self.assertEqual(len(listed["tools"]), 124)
+        self.assertEqual(len(listed["tools"]), 125)
         called = self.request("tools/call", self.modern_params(name="add", arguments={
             "firstNumber": 2, "secondNumber": 3}))["result"]
         self.assertEqual(called["resultType"], "complete")
@@ -98,7 +98,7 @@ class McpTests(unittest.TestCase):
         })
         self.assertEqual(response["result"]["protocolVersion"], "2025-06-18")
         listed = self.request("tools/list", {"_meta": {"progressToken": 2}})
-        self.assertEqual(len(listed["result"]["tools"]), 124)
+        self.assertEqual(len(listed["result"]["tools"]), 125)
 
     def test_initialize_and_catalog(self):
         response = self.request("initialize", {"protocolVersion": "2025-06-18", "capabilities": {},
@@ -120,7 +120,7 @@ class McpTests(unittest.TestCase):
                                  "compose_transform", "decompose_transform", "rotation_convert",
                                  "quaternion_slerp", "project_unproject", "ray_primitive_intersect",
                                  "closest_point", "segment_intersect_2d", "polygon_measure_2d",
-                                 "frustum_test", "power_root_log", "exact_fraction", "gcd_extended",
+                                 "frustum_test", "power_root_log", "integer_power", "exact_fraction", "gcd_extended",
                                  "modular_arithmetic", "combinatorics_exact", "complex_calculate",
                                  "polynomial_evaluate", "linear_system_solve", "descriptive_statistics",
                                  "interpolate_samples", "vector_n", "vector_special", "matrix_n",
@@ -587,6 +587,23 @@ class McpTests(unittest.TestCase):
         self.assertAlmostEqual(stats["variance"], 2/3)
         self.assertEqual(self.call("interpolate_samples", {"mode": "linear", "p1": 10, "p2": 20,
                                                              "t": 0.25})["value"], 12.5)
+
+    def test_exact_integer_power(self):
+        self.assertEqual(
+            self.call("integer_power", {"base": "64", "exponent": 50})["value"],
+            "2037035976334486086268445688409378161051468393665936250636140449354381299763336706183397376",
+        )
+        self.assertEqual(self.call("integer_power", {"base": "-2", "exponent": 5})["value"], "-32")
+        self.assertEqual(self.call("integer_power", {"base": "0x10", "exponent": 2})["value"], "256")
+        self.assertEqual(self.call("integer_power", {"base": "0", "exponent": 0})["value"], "1")
+        rejected = self.request("tools/call", {"name": "integer_power", "arguments": {
+            "base": "2", "exponent": -1,
+        }})
+        self.assertTrue(rejected["result"]["isError"])
+        oversized = self.request("tools/call", {"name": "integer_power", "arguments": {
+            "base": "10", "exponent": 10000,
+        }})
+        self.assertTrue(oversized["result"]["isError"])
 
     def test_new_tool_edge_cases(self):
         plane = self.call("ray_primitive_intersect", {"primitive": "plane", "origin": [0, 0, 0],
