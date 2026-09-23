@@ -3,8 +3,8 @@ use super::{
 };
 use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
-use std::io::Read;
-use std::process::{Child, Command, ExitStatus, Stdio};
+use std::io::{Read, Write};
+use std::process::{Child, ChildStdin, Command, ExitStatus, Stdio};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
@@ -16,10 +16,13 @@ const DEFAULT_CAPTURE_BYTES: usize = 1024 * 1024;
 struct Capture {
     data: Vec<u8>,
     truncated: bool,
+    start_offset: u64,
+    total_bytes: u64,
 }
 
 struct Managed {
     child: Child,
+    stdin: Option<ChildStdin>,
     stdout: Arc<Mutex<Capture>>,
     stderr: Arc<Mutex<Capture>>,
     stdout_thread: Option<JoinHandle<()>>,
@@ -54,10 +57,12 @@ fn capture_reader(
             let Ok(mut output) = shared.lock() else {
                 break;
             };
-            let remaining = limit.saturating_sub(output.data.len());
-            let count = remaining.min(size);
-            output.data.extend_from_slice(&chunk[..count]);
-            if count < size {
+            output.total_bytes += size as u64;
+            output.data.extend_from_slice(&chunk[..size]);
+            if output.data.len() > limit {
+                let excess = output.data.len() - limit;
+                output.data.drain(..excess);
+                output.start_offset += excess as u64;
                 output.truncated = true;
             }
         }
@@ -66,12 +71,14 @@ fn capture_reader(
 }
 
 fn attach(mut child: Child, limit: usize) -> Result<Managed, String> {
+    let stdin = child.stdin.take();
     let stdout = child.stdout.take().ok_or("Child stdout was not piped.")?;
     let stderr = child.stderr.take().ok_or("Child stderr was not piped.")?;
     let (stdout, stdout_thread) = capture_reader(stdout, limit);
     let (stderr, stderr_thread) = capture_reader(stderr, limit);
     Ok(Managed {
         child,
+        stdin,
         stdout,
         stderr,
         stdout_thread: Some(stdout_thread),
@@ -89,14 +96,31 @@ fn finish_readers(managed: &mut Managed) {
     }
 }
 
-fn output(managed: &Managed) -> Result<Value, String> {
+fn output(
+    managed: &Managed,
+    stdout_offset: Option<u64>,
+    stderr_offset: Option<u64>,
+) -> Result<Value, String> {
     let stdout = managed.stdout.lock().map_err(|_| "stdout lock poisoned.")?;
     let stderr = managed.stderr.lock().map_err(|_| "stderr lock poisoned.")?;
+    let stdout_from = stdout_offset.unwrap_or(stdout.start_offset);
+    let stderr_from = stderr_offset.unwrap_or(stderr.start_offset);
+    if stdout_from > stdout.total_bytes || stderr_from > stderr.total_bytes {
+        return Err("Output offset is beyond the captured stream.".into());
+    }
+    let stdout_start = stdout_from.max(stdout.start_offset);
+    let stderr_start = stderr_from.max(stderr.start_offset);
     Ok(json!({
-        "stdout":String::from_utf8_lossy(&stdout.data),
-        "stderr":String::from_utf8_lossy(&stderr.data),
+        "stdout":String::from_utf8_lossy(&stdout.data[(stdout_start-stdout.start_offset) as usize..]),
+        "stderr":String::from_utf8_lossy(&stderr.data[(stderr_start-stderr.start_offset) as usize..]),
         "stdoutTruncated":stdout.truncated,
-        "stderrTruncated":stderr.truncated
+        "stderrTruncated":stderr.truncated,
+        "stdoutStartOffset":stdout_start,
+        "stderrStartOffset":stderr_start,
+        "nextStdoutOffset":stdout.total_bytes,
+        "nextStderrOffset":stderr.total_bytes,
+        "missedStdoutBytes":stdout_start.saturating_sub(stdout_from),
+        "missedStderrBytes":stderr_start.saturating_sub(stderr_from)
     }))
 }
 
@@ -183,7 +207,7 @@ pub(super) fn run_capture(
         }
         thread::sleep(Duration::from_millis(20));
     }
-    let mut result = output(&managed)?;
+    let mut result = output(&managed, None, None)?;
     result["pid"] = json!(pid);
     result["exitCode"] = json!(managed.exit_code);
     result["timedOut"] = json!(timed_out);
@@ -196,6 +220,7 @@ fn start(args: &Value) -> Result<Value, String> {
         return Err("At most 64 managed processes are supported per server session.".into());
     }
     let mut command = command(args)?;
+    command.stdin(Stdio::piped());
     let child = command
         .spawn()
         .map_err(|e| io_error("Cannot start process", e))?;
@@ -356,12 +381,20 @@ fn wait(args: &Value) -> Result<Value, String> {
 fn managed_output(args: &Value) -> Result<Value, String> {
     let pid = pid_arg(args)?;
     let release = optional_bool(args, "release", false)?;
+    let stdout_offset = args
+        .get("stdoutOffset")
+        .map(|_| required_u64(args, "stdoutOffset"))
+        .transpose()?;
+    let stderr_offset = args
+        .get("stderrOffset")
+        .map(|_| required_u64(args, "stderrOffset"))
+        .transpose()?;
     let mut entries = lock_registry()?;
     let managed = entries
         .get_mut(&pid)
         .ok_or("PID was not started by this server session.")?;
     let exit = update_exit(managed)?;
-    let mut result = output(managed)?;
+    let mut result = output(managed, stdout_offset, stderr_offset)?;
     result["pid"] = json!(pid);
     result["exited"] = json!(exit.is_some());
     result["exitCode"] = json!(exit);
@@ -372,6 +405,36 @@ fn managed_output(args: &Value) -> Result<Value, String> {
         entries.remove(&pid);
     }
     Ok(result)
+}
+
+fn managed_input(args: &Value) -> Result<Value, String> {
+    let pid = pid_arg(args)?;
+    let close = optional_bool(args, "close", false)?;
+    let encoding = optional_str(args, "encoding")?.unwrap_or("utf8");
+    let raw = optional_str(args, "data")?.unwrap_or("");
+    let bytes = match encoding {
+        "utf8" => raw.as_bytes().to_vec(),
+        "hex" => crate::bytes::parse_hex(raw)?,
+        _ => return Err("'encoding' must be utf8 or hex.".into()),
+    };
+    let mut entries = lock_registry()?;
+    let managed = entries
+        .get_mut(&pid)
+        .ok_or("PID was not started by this server session.")?;
+    let stdin = managed
+        .stdin
+        .as_mut()
+        .ok_or("Process stdin is already closed.")?;
+    stdin
+        .write_all(&bytes)
+        .map_err(|e| io_error("Cannot write child stdin", e))?;
+    stdin
+        .flush()
+        .map_err(|e| io_error("Cannot flush child stdin", e))?;
+    if close {
+        managed.stdin.take();
+    }
+    Ok(json!({"pid":pid,"bytesWritten":bytes.len(),"closed":close}))
 }
 
 fn stop(args: &Value) -> Result<Value, String> {
@@ -454,6 +517,7 @@ pub fn execute(name: &str, args: &Value) -> Result<Value, String> {
         "process_tree" => tree(args),
         "process_wait" => wait(args),
         "process_output" => managed_output(args),
+        "process_input" => managed_input(args),
         "process_stop" => stop(args),
         "system_info" => Ok(system_info()),
         _ => unreachable!(),

@@ -2,10 +2,12 @@
 import json
 import os
 import hashlib
+import http.server
 import socket
 import subprocess
 import sys
 import tempfile
+import threading
 import unittest
 import zipfile
 from pathlib import Path
@@ -81,7 +83,8 @@ class McpTests(unittest.TestCase):
                                  "file_stat", "file_hash", "file_read_range", "file_write_atomic",
                                  "file_copy_move", "port_owner", "service_get", "service_control",
                                  "eventlog_query", "registry_read", "environment_get", "system_info",
-                                 "archive_create", "archive_extract", "powershell_run"})
+                                 "archive_create", "archive_extract", "powershell_run",
+                                 "process_input", "wait_for", "file_patch", "http_request"})
         for tool in tools:
             self.assertEqual(tool["inputSchema"]["type"], "object")
         pe = next(tool for tool in tools if tool["name"] == "pe_address_map")
@@ -167,6 +170,72 @@ class McpTests(unittest.TestCase):
         self.assertTrue(any(item["pid"] == os.getpid() for item in listed))
         tree = self.call("process_tree", {"pid": os.getpid()})["processes"]
         self.assertTrue(any(item["pid"] == os.getpid() for item in tree))
+
+    def test_interactive_process_and_output_cursor(self):
+        child = self.call("process_start", {"executable": sys.executable,
+                                            "arguments": ["-c", "import sys; print(sys.stdin.readline().upper(), end='')"]})
+        self.assertEqual(self.call("process_input", {"pid": child["pid"], "data": "hello\n",
+                                                     "close": True})["bytesWritten"], 6)
+        self.assertEqual(self.call("process_wait", {"pid": child["pid"], "timeoutMs": 5000})["exitCode"], 0)
+        output = self.call("process_output", {"pid": child["pid"], "stdoutOffset": 2,
+                                               "release": True})
+        self.assertEqual(output["stdout"].replace("\r\n", "\n"), "LLO\n")
+        self.assertEqual(output["nextStdoutOffset"], 2 + len(output["stdout"].encode()))
+
+    def test_wait_file_patch_and_http(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "sample.txt"
+            path.write_text("alpha alpha")
+            self.assertTrue(self.call("wait_for", {"kind": "file_exists", "path": str(path),
+                                                    "timeoutMs": 1000})["ready"])
+            self.assertFalse(self.call("wait_for", {"kind": "file_exists", "path": str(path) + ".missing",
+                                                     "timeoutMs": 100, "intervalMs": 50})["ready"])
+            digest = hashlib.sha256(path.read_bytes()).hexdigest()
+            patched = self.call("file_patch", {"path": str(path), "find": "alpha", "replace": "beta",
+                                                "expectedMatches": 2, "expectedSha256": digest})
+            self.assertEqual(patched["matches"], 2)
+            self.assertEqual(path.read_text(), "beta beta")
+            rejected = self.request("tools/call", {"name": "file_patch", "arguments": {
+                "path": str(path), "find": "beta", "replace": "gamma", "expectedSha256": digest}})
+            self.assertTrue(rejected["result"]["isError"])
+            self.assertEqual(path.read_text(), "beta beta")
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(404 if self.path == "/missing" else 200)
+                self.send_header("Content-Type", "text/plain")
+                self.end_headers()
+                self.wfile.write(b"ready")
+
+            def do_POST(self):
+                body = self.rfile.read(int(self.headers["Content-Length"]))
+                self.send_response(201)
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *_args):
+                pass
+
+        server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+        worker = threading.Thread(target=server.serve_forever, daemon=True)
+        worker.start()
+        try:
+            base_url = f"http://127.0.0.1:{server.server_port}"
+            url = base_url + "/health"
+            response = self.call("http_request", {"url": url, "timeoutMs": 3000})
+            self.assertEqual(response["status"], 200)
+            self.assertEqual(response["body"], "ready")
+            self.assertEqual(self.call("http_request", {"url": base_url + "/missing"})["status"], 404)
+            self.assertEqual(self.call("http_request", {"url": url, "method": "POST",
+                                                         "body": "payload"})["body"], "payload")
+            self.assertTrue(self.call("wait_for", {"kind": "http", "url": url,
+                                                    "expectedStatus": 200, "timeoutMs": 3000})["ready"])
+            self.assertTrue(self.call("wait_for", {"kind": "tcp", "host": "127.0.0.1",
+                                                    "port": server.server_port, "timeoutMs": 3000})["ready"])
+        finally:
+            server.shutdown()
+            server.server_close()
+            worker.join(timeout=3)
 
     @unittest.skipUnless(os.name == "nt", "Windows-only operation")
     def test_process_stop(self):

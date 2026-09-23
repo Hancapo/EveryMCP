@@ -19,9 +19,8 @@ pub fn execute(name: &str, args: &Value) -> Result<Value, String> {
         | "text_search" | "file_stat" | "file_hash" | "file_read_range" | "file_write_atomic"
         | "file_copy_move" | "port_owner" | "service_get" | "service_control"
         | "eventlog_query" | "registry_read" | "environment_get" | "system_info"
-        | "archive_create" | "archive_extract" | "powershell_run" => {
-            crate::host::execute(name, args)
-        }
+        | "archive_create" | "archive_extract" | "powershell_run" | "process_input"
+        | "wait_for" | "file_patch" | "http_request" => crate::host::execute(name, args),
         "add" | "subtract" | "multiply" | "division" | "modulo" | "sum" | "mean" | "median"
         | "mode" | "min" | "max" | "floor" | "ceiling" | "round" | "sin" | "arcsin" | "cos"
         | "arccos" | "tan" | "arctan" | "radiansToDegrees" | "degreesToRadians" => {
