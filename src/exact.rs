@@ -33,6 +33,22 @@ pub fn modulo(value: &BigInt, modulus: &BigInt) -> BigInt {
     ((value % modulus) + modulus) % modulus
 }
 
+pub fn integer_power(base: &BigInt, exponent: u32) -> Result<BigInt, String> {
+    const MAX_RESULT_DIGITS: usize = 10_000;
+    let magnitude = base.abs();
+    let base_digits = magnitude.to_str_radix(10).len();
+    if magnitude > BigInt::one()
+        && base_digits.saturating_mul(exponent as usize) > MAX_RESULT_DIGITS
+    {
+        return Err("Power result may exceed 10000 decimal digits.".into());
+    }
+    let result = base.pow(exponent);
+    if result.abs().to_str_radix(10).len() > MAX_RESULT_DIGITS {
+        return Err("Power result exceeds 10000 decimal digits.".into());
+    }
+    Ok(result)
+}
+
 pub struct Fraction {
     pub numerator: BigInt,
     pub denominator: BigInt,

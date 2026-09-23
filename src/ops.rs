@@ -99,6 +99,7 @@ pub fn execute(name: &str, args: &Value) -> Result<Value, String> {
         | "polygon_measure_2d"
         | "frustum_test" => geometry_extra::execute(name, args),
         "power_root_log"
+        | "integer_power"
         | "exact_fraction"
         | "gcd_extended"
         | "modular_arithmetic"

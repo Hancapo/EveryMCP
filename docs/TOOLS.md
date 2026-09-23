@@ -1,6 +1,6 @@
 # EveryMCP tool guide
 
-EveryMCP exposes 124 tools. This guide gives each tool's purpose and one practical use case. Call `tools/list` for the authoritative JSON schema, supported options, and current descriptions.
+EveryMCP exposes 125 tools. This guide gives each tool's purpose and one practical use case. Call `tools/list` for the authoritative JSON schema, supported options, and current descriptions.
 
 A tool call uses the standard MCP envelope:
 
@@ -85,7 +85,8 @@ For exact integer and binary operations, pass integer values as strings when the
 
 | Tool | What to use it for | Example use case |
 | --- | --- | --- |
-| `power_root_log` | Compute powers, roots, logarithms, or exponentials. | Compare exponential growth models. |
+| `power_root_log` | Compute floating-point powers, roots, logarithms, or exponentials. | Compare approximate exponential growth models. |
+| `integer_power` | Raise an integer-string base to a nonnegative integer exponent exactly. | Calculate `64^50` without losing digits to floating-point rounding. |
 | `exact_fraction` | Perform exact fraction arithmetic and comparisons. | Avoid float rounding in rational unit conversions. |
 | `gcd_extended` | Find GCD, LCM, and Bézout coefficients for integer strings. | Derive coefficients for a modular inverse proof. |
 | `modular_arithmetic` | Add, multiply, exponentiate, or invert modulo a positive integer. | Check a rolling counter or modular algorithm. |
