@@ -86,7 +86,8 @@ class McpTests(unittest.TestCase):
                                  "archive_create", "archive_extract", "powershell_run",
                                  "process_input", "wait_for", "file_patch", "http_request",
                                  "network_probe", "dns_query", "executable_resolve",
-                                 "directory_manifest", "file_signature"})
+                                 "directory_manifest", "file_signature", "scheduled_task",
+                                 "eventlog_follow", "performance_sample", "acl_get"})
         for tool in tools:
             self.assertEqual(tool["inputSchema"]["type"], "object")
         pe = next(tool for tool in tools if tool["name"] == "pe_address_map")
@@ -263,6 +264,30 @@ class McpTests(unittest.TestCase):
         signature = self.call("file_signature", {"path": sys.executable})
         self.assertIn("status", signature)
         self.assertIn("fileVersion", signature)
+
+    def test_performance_sample(self):
+        sample = self.call("performance_sample", {"sampleMs": 200})
+        self.assertGreater(sample["totalMemoryBytes"], 0)
+        self.assertIn("cpuPercent", sample)
+        self.assertIsInstance(sample["networks"], list)
+        self.assertIsInstance(sample["disks"], list)
+
+    @unittest.skipUnless(os.name == "nt", "Windows-only diagnostics")
+    def test_windows_diagnostics(self):
+        tasks = self.call("scheduled_task", {"operation": "list", "limit": 5})
+        self.assertIsInstance(tasks["tasks"], list)
+        invalid = self.request("tools/call", {"name": "scheduled_task",
+                                                "arguments": {"operation": "invalid"}})
+        self.assertTrue(invalid["result"]["isError"])
+        acl = self.call("acl_get", {"path": sys.executable})
+        self.assertTrue(acl["owner"])
+        events = self.call("eventlog_follow", {"logName": "System", "maxEvents": 2})
+        self.assertIsInstance(events["events"], list)
+        self.assertIn("nextRecordId", events)
+        if events["nextRecordId"] is not None:
+            newer = self.call("eventlog_follow", {"logName": "System", "maxEvents": 2,
+                                                  "afterRecordId": events["nextRecordId"]})
+            self.assertTrue(all(item["recordId"] > events["nextRecordId"] for item in newer["events"]))
 
     @unittest.skipUnless(os.name == "nt", "Windows-only operation")
     def test_process_stop(self):

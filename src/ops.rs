@@ -21,9 +21,8 @@ pub fn execute(name: &str, args: &Value) -> Result<Value, String> {
         | "eventlog_query" | "registry_read" | "environment_get" | "system_info"
         | "archive_create" | "archive_extract" | "powershell_run" | "process_input"
         | "wait_for" | "file_patch" | "http_request" | "network_probe" | "dns_query"
-        | "executable_resolve" | "directory_manifest" | "file_signature" => {
-            crate::host::execute(name, args)
-        }
+        | "executable_resolve" | "directory_manifest" | "file_signature" | "scheduled_task"
+        | "eventlog_follow" | "performance_sample" | "acl_get" => crate::host::execute(name, args),
         "add" | "subtract" | "multiply" | "division" | "modulo" | "sum" | "mean" | "median"
         | "mode" | "min" | "max" | "floor" | "ceiling" | "round" | "sin" | "arcsin" | "cos"
         | "arccos" | "tan" | "arctan" | "radiansToDegrees" | "degreesToRadians" => {
