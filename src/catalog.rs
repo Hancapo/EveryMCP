@@ -624,6 +624,14 @@ fn schema(kind: &str) -> Value {
         "number[]" => json!({"type":"array","items":{"type":"number"}}),
         "string[]" => json!({"type":"array","items":{"type":"string"}}),
         "stringMap" => json!({"type":"object","additionalProperties":{"type":"string"}}),
+        "pipelineSteps" => {
+            json!({"type":"array","minItems":1,"maxItems":32,"items":{"type":"object","properties":{
+            "executable":{"type":"string"},"arguments":{"type":"array","items":{"type":"string"}},
+            "cwd":{"type":"string"},"env":{"type":"object","additionalProperties":{"type":"string"}},
+            "timeoutMs":{"type":"integer","minimum":1,"maximum":300000},
+            "maxOutputBytes":{"type":"integer","minimum":0,"maximum":4194304}},
+            "required":["executable"],"additionalProperties":false}})
+        }
         "number[][]" => json!({"type":"array","items":{"type":"array","items":{"type":"number"}}}),
         "object[]" => json!({"type":"array","maxItems":128,"items":{"type":"object",
             "properties":{"name":{"type":"string"},"virtualAddress":{"type":"string"},
