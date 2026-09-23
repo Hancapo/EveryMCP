@@ -105,7 +105,11 @@ fn process(line: &str, tools: &[Value]) -> Option<Value> {
 
 fn modern_request(request: &Value, method: &str, id: &Value) -> Result<bool, Value> {
     let meta = request.get("params").and_then(|params| params.get("_meta"));
-    if meta.is_none() && method != "server/discover" {
+    let has_modern_fields = meta.and_then(Value::as_object).is_some_and(|fields| {
+        fields.contains_key("io.modelcontextprotocol/protocolVersion")
+            || fields.contains_key("io.modelcontextprotocol/clientCapabilities")
+    });
+    if !has_modern_fields && method != "server/discover" {
         return Ok(false);
     }
     let meta = meta
