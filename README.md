@@ -39,6 +39,8 @@ Example client configuration:
 | Structured data | Query and compare JSON, TOML, YAML, XML and CSV; inventory declared and resolved dependencies. |
 | Artifacts and diagnostics | Save and compare hashed directory snapshots; parse compiler diagnostics and JUnit, TRX or TAP test reports. |
 
+See [the tool guide](docs/TOOLS.md) for the purpose and a practical use case for every tool.
+
 Call `tools/list` for the complete tool catalog and JSON schemas. For example:
 
 ```json
