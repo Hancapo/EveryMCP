@@ -315,6 +315,46 @@ pub fn append(tools: &mut Vec<Value>) {
             false,
             false,
         ),
+        (
+            "network_probe",
+            "Probe a TCP port or verified TLS handshake and report latency and certificate hash.",
+            &[("host", "string"), ("port", "integerNumber")],
+            &[("protocol", "string"), ("timeoutMs", "integerNumber")],
+            true,
+            true,
+        ),
+        (
+            "dns_query",
+            "Query A, AAAA, CNAME, MX, NS, TXT or SRV records with a bounded timeout.",
+            &[("name", "string")],
+            &[("recordType", "string"), ("timeoutMs", "integerNumber")],
+            true,
+            true,
+        ),
+        (
+            "executable_resolve",
+            "Resolve an executable by path or PATH and report its architecture, file size and available version metadata.",
+            &[("name", "string")],
+            &[],
+            true,
+            true,
+        ),
+        (
+            "directory_manifest",
+            "Inventory a directory with optional SHA-256 hashes and a bounded entry count.",
+            &[("root", "string")],
+            &[("hashFiles", "boolean"), ("limit", "integerNumber")],
+            true,
+            true,
+        ),
+        (
+            "file_signature",
+            "Inspect Authenticode status, signer and version information for a Windows file.",
+            &[("path", "string")],
+            &[],
+            true,
+            true,
+        ),
     ];
     for &(name, description, required, optional, read_only, idempotent) in specs {
         crate::catalog::add_extra(tools, name, description, required, optional);

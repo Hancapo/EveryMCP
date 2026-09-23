@@ -1,5 +1,6 @@
 mod archive;
 mod files;
+mod inspect;
 mod network;
 mod process;
 mod wait;
@@ -15,11 +16,18 @@ pub fn execute(name: &str, args: &Value) -> Result<Value, String> {
         }
         "wait_for" => wait::execute(args),
         "http_request" => network::request(args),
+        "network_probe" => network::probe(args),
+        "dns_query" => network::dns_query(args),
+        "executable_resolve" => inspect::executable_resolve(args),
         "file_find" | "text_search" | "file_stat" | "file_hash" | "file_read_range"
-        | "file_write_atomic" | "file_copy_move" | "file_patch" => files::execute(name, args),
+        | "file_write_atomic" | "file_copy_move" | "file_patch" | "directory_manifest" => {
+            files::execute(name, args)
+        }
         "archive_create" | "archive_extract" => archive::execute(name, args),
         "process_modules" | "port_owner" | "service_get" | "service_control" | "eventlog_query"
-        | "registry_read" | "environment_get" | "powershell_run" => windows::execute(name, args),
+        | "registry_read" | "environment_get" | "powershell_run" | "file_signature" => {
+            windows::execute(name, args)
+        }
         _ => Err(format!("Unknown host tool '{name}'.")),
     }
 }

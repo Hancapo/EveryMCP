@@ -1,6 +1,9 @@
-use super::{io_error, optional_str, optional_u64, required_str};
+use super::{io_error, optional_str, optional_u64, required_str, required_u64};
+use hickory_resolver::{Resolver, proto::rr::RecordType};
+use native_tls::TlsConnector;
 use serde_json::{Value, json};
 use std::io::Read;
+use std::net::{SocketAddr, TcpStream, ToSocketAddrs};
 use std::time::Duration;
 use ureq::{Agent, http};
 
@@ -71,4 +74,117 @@ pub fn request(args: &Value) -> Result<Value, String> {
     Ok(
         json!({"status":status,"headers":headers,"body":body,"bodyEncoding":encoding,"bodyBytes":bytes.len(),"truncated":truncated}),
     )
+}
+
+pub fn connect_tcp(
+    host: &str,
+    port: u16,
+    timeout: Duration,
+) -> Result<(TcpStream, SocketAddr), String> {
+    let addresses = (host, port)
+        .to_socket_addrs()
+        .map_err(|e| io_error("Cannot resolve host", e))?;
+    let mut last_error = "No addresses found.".to_owned();
+    for address in addresses {
+        match TcpStream::connect_timeout(&address, timeout) {
+            Ok(stream) => return Ok((stream, address)),
+            Err(error) => last_error = error.to_string(),
+        }
+    }
+    Err(last_error)
+}
+
+pub fn probe(args: &Value) -> Result<Value, String> {
+    let host = required_str(args, "host")?;
+    let port = required_u64(args, "port")?;
+    if port == 0 || port > 65535 {
+        return Err("'port' must be between 1 and 65535.".into());
+    }
+    let protocol = optional_str(args, "protocol")?.unwrap_or("tcp");
+    if protocol != "tcp" && protocol != "tls" {
+        return Err("'protocol' must be tcp or tls.".into());
+    }
+    let timeout = optional_u64(args, "timeoutMs", 5000, 30000)?;
+    let start = std::time::Instant::now();
+    let (stream, address) = match connect_tcp(host, port as u16, Duration::from_millis(timeout)) {
+        Ok(connection) => connection,
+        Err(error) => {
+            return Ok(
+                json!({"host":host,"port":port,"protocol":protocol,"connected":false,"error":error,"elapsedMs":start.elapsed().as_millis()}),
+            );
+        }
+    };
+    if protocol == "tcp" {
+        return Ok(
+            json!({"host":host,"port":port,"protocol":protocol,"connected":true,"address":address.to_string(),"elapsedMs":start.elapsed().as_millis()}),
+        );
+    }
+    stream
+        .set_read_timeout(Some(Duration::from_millis(timeout)))
+        .map_err(|e| io_error("Cannot set read timeout", e))?;
+    stream
+        .set_write_timeout(Some(Duration::from_millis(timeout)))
+        .map_err(|e| io_error("Cannot set write timeout", e))?;
+    let connector = TlsConnector::new().map_err(|e| io_error("Cannot create TLS connector", e))?;
+    match connector.connect(host, stream) {
+        Ok(tls) => {
+            let certificate = tls.peer_certificate().ok().flatten();
+            let sha256 = certificate.and_then(|cert| cert.to_der().ok()).map(|der| {
+                use sha2::Digest;
+                super::files::digest_hex(&sha2::Sha256::digest(der))
+            });
+            Ok(
+                json!({"host":host,"port":port,"protocol":protocol,"connected":true,"address":address.to_string(),"peerCertificateSha256":sha256,"elapsedMs":start.elapsed().as_millis()}),
+            )
+        }
+        Err(error) => Ok(
+            json!({"host":host,"port":port,"protocol":protocol,"connected":false,"address":address.to_string(),"error":error.to_string(),"elapsedMs":start.elapsed().as_millis()}),
+        ),
+    }
+}
+
+pub fn dns_query(args: &Value) -> Result<Value, String> {
+    let name = required_str(args, "name")?;
+    let kind = optional_str(args, "recordType")?
+        .unwrap_or("A")
+        .to_ascii_uppercase();
+    let record_type = match kind.as_str() {
+        "A" => RecordType::A,
+        "AAAA" => RecordType::AAAA,
+        "CNAME" => RecordType::CNAME,
+        "MX" => RecordType::MX,
+        "NS" => RecordType::NS,
+        "TXT" => RecordType::TXT,
+        "SRV" => RecordType::SRV,
+        _ => return Err("Unsupported DNS record type.".into()),
+    };
+    let timeout = optional_u64(args, "timeoutMs", 5000, 30000)?;
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .map_err(|e| io_error("Cannot start DNS runtime", e))?;
+    runtime.block_on(async {
+        let resolver = Resolver::builder_tokio()
+            .map_err(|e| io_error("Cannot load DNS configuration", e))?
+            .build()
+            .map_err(|e| io_error("Cannot create DNS resolver", e))?;
+        let lookup = tokio::time::timeout(
+            Duration::from_millis(timeout),
+            resolver.lookup(name, record_type),
+        )
+        .await
+        .map_err(|_| "DNS query timed out.".to_owned())?
+        .map_err(|e| io_error("DNS query failed", e))?;
+        let records: Vec<Value> = lookup
+            .answers()
+            .iter()
+            .map(|record| {
+                json!({
+                    "name":record.name.to_string(), "type":kind, "ttl":record.ttl,
+                    "value":record.data.to_string()
+                })
+            })
+            .collect();
+        Ok(json!({"name":name,"recordType":kind,"records":records}))
+    })
 }

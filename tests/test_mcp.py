@@ -84,7 +84,9 @@ class McpTests(unittest.TestCase):
                                  "file_copy_move", "port_owner", "service_get", "service_control",
                                  "eventlog_query", "registry_read", "environment_get", "system_info",
                                  "archive_create", "archive_extract", "powershell_run",
-                                 "process_input", "wait_for", "file_patch", "http_request"})
+                                 "process_input", "wait_for", "file_patch", "http_request",
+                                 "network_probe", "dns_query", "executable_resolve",
+                                 "directory_manifest", "file_signature"})
         for tool in tools:
             self.assertEqual(tool["inputSchema"]["type"], "object")
         pe = next(tool for tool in tools if tool["name"] == "pe_address_map")
@@ -236,6 +238,31 @@ class McpTests(unittest.TestCase):
             server.shutdown()
             server.server_close()
             worker.join(timeout=3)
+
+    def test_network_and_file_inspection(self):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
+            listener.bind(("127.0.0.1", 0))
+            listener.listen(1)
+            probe = self.call("network_probe", {"host": "127.0.0.1", "port": listener.getsockname()[1]})
+            self.assertTrue(probe["connected"])
+        resolved = self.call("dns_query", {"name": "localhost", "recordType": "A"})
+        self.assertTrue(resolved["records"])
+        executable = self.call("executable_resolve", {"name": sys.executable})
+        self.assertTrue(Path(executable["path"]).is_file())
+        self.assertIn(executable["architecture"], {"x86", "x86_64", "aarch64", "arm"})
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "a.txt").write_text("a")
+            (root / "b.txt").write_text("b")
+            manifest = self.call("directory_manifest", {"root": str(root), "hashFiles": True})
+            self.assertEqual(manifest["fileCount"], 2)
+            self.assertEqual(len(manifest["entries"][0]["sha256"]), 64)
+
+    @unittest.skipUnless(os.name == "nt", "Windows-only signature inspection")
+    def test_file_signature(self):
+        signature = self.call("file_signature", {"path": sys.executable})
+        self.assertIn("status", signature)
+        self.assertIn("fileVersion", signature)
 
     @unittest.skipUnless(os.name == "nt", "Windows-only operation")
     def test_process_stop(self):
