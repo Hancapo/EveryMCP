@@ -1,6 +1,6 @@
 # EveryMCP tool guide
 
-EveryMCP exposes 138 tools. This guide gives each tool's purpose and one practical use case. Call `tools/list` for the authoritative JSON schema, supported options, and current descriptions.
+EveryMCP exposes 139 tools. This guide gives each tool's purpose and one practical use case. Call `tools/list` for the authoritative JSON schema, supported options, and current descriptions.
 
 A tool call uses the standard MCP envelope:
 
@@ -139,6 +139,7 @@ For exact integer and binary operations, pass integer values as strings when the
 | `process_output` | Read captured output incrementally from a managed child. | Follow a long-running server log without rereading earlier bytes. |
 | `process_stop` | Stop a PID, optionally with its descendants and a start-time check. | End a stuck test process tree. |
 | `process_modules` | List modules loaded by a Windows process. | Confirm which native DLL version an application loaded. |
+| `process_module_dump` | Rebuild a PE from only the loaded main EXE image of a Windows process. | Save an unpacked executable image for IDA or Ghidra analysis. |
 | `process_input` | Send UTF-8 or hex data to a managed child's stdin, or close it. | Drive an interactive command-line program through its prompt. |
 
 ## Files, archives, and networking
@@ -199,3 +200,9 @@ The Windows administration tools in this section require Windows. `system_info` 
 | `pe_inspect` | Inspect an on-disk PE image's headers, sections, imports, exports, and certificate-table presence. | Understand a binary's architecture and dependencies. |
 | `image_inspect` | Read image dimensions, format, transparency hints, and EXIF tags. | Check an asset's dimensions before use. |
 | `text_transcode` | Convert UTF-8 or BOM-marked UTF-16 encoding and line endings atomically. | Make a Windows text file UTF-8 with LF endings. |
+
+## Dumping a loaded main executable
+
+Call `process_module_dump` with `outputPath` and either `pid` or an unambiguous `name`. It identifies the main EXE module, reads only readable `MEM_IMAGE` pages in that module's `ImageBase..ImageBase+SizeOfImage`, then writes its headers and sections with file-aligned offsets. Unreadable pages stop the operation by default; `allowPartial: true` zero-fills them and reports `unreadableBytes`. The output is an analysis snapshot, not a runnable rebuild: imports, the original entry point, and discarded file-only data may still need manual work.
+
+Windows requires `PROCESS_QUERY_INFORMATION` and `PROCESS_VM_READ`. A sufficiently privileged account or `SeDebugPrivilege` may be needed for some processes; protected processes may still refuse access. The tool does not enable privileges, alter the process, or read its heap, private allocations, or other modules.

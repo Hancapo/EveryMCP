@@ -90,12 +90,9 @@ fn align_address(args: &Value) -> Result<Value, String> {
     if alignment == 0 || !alignment.is_power_of_two() {
         return Err("Alignment must be a nonzero power of two.".into());
     }
-    let down = virtual_address & !(alignment - 1);
-    let up = if down == virtual_address {
-        down
-    } else {
-        down + alignment
-    };
+    let down = integer::align_down(virtual_address, alignment).unwrap();
+    let up = integer::align_up(virtual_address, alignment)
+        .ok_or("Aligned address overflows 128 bits.")?;
     if up > mask(64) {
         return Err("Aligned address overflows 64 bits.".into());
     }

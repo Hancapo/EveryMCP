@@ -11,6 +11,7 @@ mod manifest;
 mod network;
 mod performance;
 mod process;
+mod process_dump;
 mod reports;
 mod shell;
 mod wait;
@@ -46,6 +47,7 @@ pub fn execute(name: &str, args: &Value) -> Result<Value, String> {
         | "image_inspect"
         | "text_transcode" => file_extra::execute(name, args),
         "pe_inspect" => binary_inspect::pe_inspect(args),
+        "process_module_dump" => process_dump::dump(args),
         "file_lock_holders" => locks::holders(args),
         "workspace_scan"
         | "repo_status_batch"

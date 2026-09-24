@@ -12,6 +12,20 @@ type ToolSpec = (
 pub fn append(tools: &mut Vec<Value>) {
     let specs: &[ToolSpec] = &[
         (
+            "process_module_dump",
+            "Dump only the loaded main EXE image of a Windows process to a rebuilt PE for analysis. Supply pid or an unambiguous process name; unreadable pages require allowPartial=true.",
+            &[("outputPath", "string")],
+            &[
+                ("pid", "integerNumber"),
+                ("name", "string"),
+                ("overwrite", "boolean"),
+                ("allowPartial", "boolean"),
+                ("maxImageBytes", "integerNumber"),
+            ],
+            false,
+            false,
+        ),
+        (
             "hardware_inventory",
             "Inventory CPU, GPU adapters, physical RAM modules, drivers, and OS on Windows.",
             &[],

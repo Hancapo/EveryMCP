@@ -1,6 +1,6 @@
 # EveryMCP
 
-A native Rust MCP server with **138 tools** for mathematics, reverse engineering, geometry, and local system automation. It includes the 22 operations from [math-mcp](https://github.com/EthanHenrickson/math-mcp) with their original names and arguments; no code or dependencies are copied from that project.
+A native Rust MCP server with **139 tools** for mathematics, reverse engineering, geometry, and local system automation. It includes the 22 operations from [math-mcp](https://github.com/EthanHenrickson/math-mcp) with their original names and arguments; no code or dependencies are copied from that project.
 
 ## Build
 
@@ -27,7 +27,7 @@ Example client configuration:
 | Area | Included operations |
 | --- | --- |
 | Mathematics | Arithmetic, statistics, trigonometry, exact fractions, modular arithmetic, complex numbers, interpolation, and numerical analysis. |
-| Reverse engineering | Integer and bit operations, address translation, PE mapping and relocations, binary packing, floating-point decoding, and checksums. |
+| Reverse engineering | Integer and bit operations, address translation, PE mapping and relocations, dumping the loaded main executable, binary packing, floating-point decoding, and checksums. |
 | Geometry and linear algebra | 2D/3D intersections, transforms, quaternions, vector operations, and matrices up to 32 × 32. |
 | Processes | Start, run, inspect, list, send stdin, read output incrementally, wait for, and stop processes; inspect loaded modules. |
 | Files and ZIP | Find, compare, tail, hash, transcode, inspect images, search binary patterns, write, patch, copy, trash, create ZIP archives, inspect them, and extract all or selected entries. |
