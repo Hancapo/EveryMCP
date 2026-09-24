@@ -158,7 +158,7 @@ pub(super) fn digest_hex(bytes: &[u8]) -> String {
     text
 }
 
-fn hash_file(path: &Path, algorithm: &str) -> Result<(String, u64), String> {
+pub(super) fn hash_file(path: &Path, algorithm: &str) -> Result<(String, u64), String> {
     let mut file = File::open(path).map_err(|e| io_error("Cannot open file", e))?;
     let mut buffer = [0u8; 65536];
     let mut count = 0u64;

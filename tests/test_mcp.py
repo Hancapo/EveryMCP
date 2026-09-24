@@ -3,6 +3,7 @@ import json
 import os
 import hashlib
 import base64
+import shutil
 import http.server
 import socket
 import subprocess
@@ -66,7 +67,7 @@ class McpTests(unittest.TestCase):
         self.assertEqual(discovered["_meta"]["io.modelcontextprotocol/serverInfo"]["name"], "EveryMCP")
         listed = self.request("tools/list", self.modern_params())["result"]
         self.assertEqual(listed["resultType"], "complete")
-        self.assertEqual(len(listed["tools"]), 138)
+        self.assertEqual(len(listed["tools"]), 139)
         called = self.request("tools/call", self.modern_params(name="add", arguments={
             "firstNumber": 2, "secondNumber": 3}))["result"]
         self.assertEqual(called["resultType"], "complete")
@@ -99,7 +100,7 @@ class McpTests(unittest.TestCase):
         })
         self.assertEqual(response["result"]["protocolVersion"], "2025-06-18")
         listed = self.request("tools/list", {"_meta": {"progressToken": 2}})
-        self.assertEqual(len(listed["result"]["tools"]), 138)
+        self.assertEqual(len(listed["result"]["tools"]), 139)
 
     def test_initialize_and_catalog(self):
         response = self.request("initialize", {"protocolVersion": "2025-06-18", "capabilities": {},
@@ -144,7 +145,7 @@ class McpTests(unittest.TestCase):
                             "hardware_inventory", "archive_inspect", "archive_extract_selected",
                             "http_download_file", "file_tail", "file_lock_holders", "file_diff",
                             "file_trash", "binary_pattern_search", "pe_inspect", "image_inspect",
-                            "text_transcode"})
+                            "text_transcode", "process_module_dump"})
         for tool in tools:
             self.assertEqual(tool["inputSchema"]["type"], "object")
         pe = next(tool for tool in tools if tool["name"] == "pe_address_map")
@@ -818,6 +819,49 @@ class McpTests(unittest.TestCase):
                                                  "matrix": {"rows": 2, "cols": 3, "data": [1, 0, 2, 0, 1, 3]},
                                                  "vectors": [[0, 0], [1, 1]]})
         self.assertEqual(batched["vectors"], [[2, 3], [3, 4]])
+
+    def test_process_module_dump_rebuilds_only_main_image(self):
+        if os.name != "nt":
+            self.skipTest("Windows process memory API")
+        with tempfile.TemporaryDirectory() as tmp:
+            output = Path(tmp) / "main-image.dump.exe"
+            result = self.call("process_module_dump", {"pid": self.process.pid,
+                "outputPath": str(output), "allowPartial": True})
+            self.assertEqual(result["pid"], self.process.pid)
+            self.assertGreater(result["sectionCount"], 0)
+            self.assertEqual(result["outputBytes"], output.stat().st_size)
+            self.assertEqual(result["sha256"], hashlib.sha256(output.read_bytes()).hexdigest())
+            image = output.read_bytes()
+            self.assertEqual(image[:2], b"MZ")
+            pe = int.from_bytes(image[0x3c:0x40], "little")
+            self.assertEqual(image[pe:pe+4], b"PE\0\0")
+            count = int.from_bytes(image[pe+6:pe+8], "little")
+            optional = pe + 24
+            file_alignment = int.from_bytes(image[optional+36:optional+40], "little")
+            table = optional + int.from_bytes(image[pe+20:pe+22], "little")
+            self.assertEqual(count, result["sectionCount"])
+            for index in range(count):
+                entry = table + index * 40
+                size = int.from_bytes(image[entry+16:entry+20], "little")
+                offset = int.from_bytes(image[entry+20:entry+24], "little")
+                self.assertEqual(offset % file_alignment, 0)
+                self.assertEqual(size % file_alignment, 0)
+                self.assertLessEqual(offset + size, len(image))
+            inspected = self.call("pe_inspect", {"path": str(output), "limit": 10})
+            self.assertEqual(inspected["sectionCount"], count)
+            fixture = Path(tmp) / f"DumpFixture{os.getpid()}.exe"
+            shutil.copyfile(EXE, fixture)
+            child = subprocess.Popen([str(fixture)], stdin=subprocess.PIPE,
+                                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                     creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            try:
+                by_name = self.call("process_module_dump", {"name": fixture.stem.upper(),
+                    "outputPath": str(Path(tmp) / "by-name.dump.exe"), "allowPartial": True})
+                self.assertEqual(by_name["pid"], child.pid)
+            finally:
+                child.terminate()
+                child.wait(timeout=5)
+                child.stdin.close()
 
     def test_additional_file_and_archive_tools(self):
         with tempfile.TemporaryDirectory() as tmp:

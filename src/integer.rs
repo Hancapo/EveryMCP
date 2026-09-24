@@ -2,6 +2,19 @@ pub fn mask(bits: u32) -> u128 {
     (1u128 << bits) - 1
 }
 
+pub fn align_down(value: u128, alignment: u128) -> Option<u128> {
+    (alignment != 0 && alignment.is_power_of_two()).then_some(value & !(alignment - 1))
+}
+
+pub fn align_up(value: u128, alignment: u128) -> Option<u128> {
+    if alignment == 0 || !alignment.is_power_of_two() {
+        return None;
+    }
+    value
+        .checked_add(alignment - 1)
+        .map(|sum| sum & !(alignment - 1))
+}
+
 pub fn signed(value: u128, bits: u32) -> i128 {
     if value >= 1u128 << (bits - 1) {
         value as i128 - (1i128 << bits)

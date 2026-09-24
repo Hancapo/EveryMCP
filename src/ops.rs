@@ -23,6 +23,7 @@ pub fn execute(name: &str, args: &Value) -> Result<Value, String> {
         | "process_output"
         | "process_stop"
         | "process_modules"
+        | "process_module_dump"
         | "file_find"
         | "text_search"
         | "file_stat"
