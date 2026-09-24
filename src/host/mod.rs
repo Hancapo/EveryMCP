@@ -8,6 +8,7 @@ mod network;
 mod performance;
 mod process;
 mod reports;
+mod shell;
 mod wait;
 mod windows;
 mod workspace;
@@ -40,6 +41,7 @@ pub fn execute(name: &str, args: &Value) -> Result<Value, String> {
         "dependency_inventory" => dependencies::execute(args),
         "artifact_manifest" | "manifest_diff" => manifest::execute(name, args),
         "diagnostics_parse" | "test_results_parse" => reports::execute(name, args),
+        "file_open" => shell::open(args),
         "process_modules" | "port_owner" | "service_get" | "service_control" | "eventlog_query"
         | "registry_read" | "environment_get" | "powershell_run" | "file_signature"
         | "scheduled_task" | "eventlog_follow" | "acl_get" => windows::execute(name, args),
