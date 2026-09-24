@@ -61,7 +61,19 @@ pub fn execute(name: &str, args: &Value) -> Result<Value, String> {
         | "file_watch"
         | "structured_data_query"
         | "structured_data_diff"
-        | "dependency_inventory" => crate::host::execute(name, args),
+        | "dependency_inventory"
+        | "hardware_inventory"
+        | "archive_inspect"
+        | "archive_extract_selected"
+        | "http_download_file"
+        | "file_tail"
+        | "file_lock_holders"
+        | "file_diff"
+        | "file_trash"
+        | "binary_pattern_search"
+        | "pe_inspect"
+        | "image_inspect"
+        | "text_transcode" => crate::host::execute(name, args),
         "artifact_manifest" | "manifest_diff" | "diagnostics_parse" | "test_results_parse" => {
             crate::host::execute(name, args)
         }

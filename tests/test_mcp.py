@@ -2,6 +2,7 @@
 import json
 import os
 import hashlib
+import base64
 import http.server
 import socket
 import subprocess
@@ -65,7 +66,7 @@ class McpTests(unittest.TestCase):
         self.assertEqual(discovered["_meta"]["io.modelcontextprotocol/serverInfo"]["name"], "EveryMCP")
         listed = self.request("tools/list", self.modern_params())["result"]
         self.assertEqual(listed["resultType"], "complete")
-        self.assertEqual(len(listed["tools"]), 126)
+        self.assertEqual(len(listed["tools"]), 138)
         called = self.request("tools/call", self.modern_params(name="add", arguments={
             "firstNumber": 2, "secondNumber": 3}))["result"]
         self.assertEqual(called["resultType"], "complete")
@@ -98,7 +99,7 @@ class McpTests(unittest.TestCase):
         })
         self.assertEqual(response["result"]["protocolVersion"], "2025-06-18")
         listed = self.request("tools/list", {"_meta": {"progressToken": 2}})
-        self.assertEqual(len(listed["result"]["tools"]), 126)
+        self.assertEqual(len(listed["result"]["tools"]), 138)
 
     def test_initialize_and_catalog(self):
         response = self.request("initialize", {"protocolVersion": "2025-06-18", "capabilities": {},
@@ -139,7 +140,11 @@ class McpTests(unittest.TestCase):
                             "workspace_scan", "repo_status_batch", "command_pipeline",
                             "environment_snapshot", "file_watch", "structured_data_query",
                             "structured_data_diff", "dependency_inventory", "artifact_manifest",
-                            "manifest_diff", "diagnostics_parse", "test_results_parse"})
+                            "manifest_diff", "diagnostics_parse", "test_results_parse",
+                            "hardware_inventory", "archive_inspect", "archive_extract_selected",
+                            "http_download_file", "file_tail", "file_lock_holders", "file_diff",
+                            "file_trash", "binary_pattern_search", "pe_inspect", "image_inspect",
+                            "text_transcode"})
         for tool in tools:
             self.assertEqual(tool["inputSchema"]["type"], "object")
         pe = next(tool for tool in tools if tool["name"] == "pe_address_map")
@@ -813,6 +818,108 @@ class McpTests(unittest.TestCase):
                                                  "matrix": {"rows": 2, "cols": 3, "data": [1, 0, 2, 0, 1, 3]},
                                                  "vectors": [[0, 0], [1, 1]]})
         self.assertEqual(batched["vectors"], [[2, 3], [3, 4]])
+
+    def test_additional_file_and_archive_tools(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            log = root / "log.txt"
+            log.write_text("one\ntwo\nthree\n", encoding="utf-8")
+            tail = self.call("file_tail", {"path": str(log), "lines": 2})
+            self.assertEqual(tail["text"], "two\nthree")
+            with log.open("a", encoding="utf-8") as stream:
+                stream.write("four\n")
+            self.assertEqual(self.call("file_tail", {"path": str(log), "cursor": tail["nextCursor"]})["text"], "four")
+            right = root / "right.txt"
+            right.write_text("one\ntwo\nchanged\n", encoding="utf-8")
+            diff = self.call("file_diff", {"leftPath": str(log), "rightPath": str(right)})
+            self.assertFalse(diff["equal"])
+            self.assertGreater(diff["changeCount"], 0)
+            endings = root / "endings.txt"
+            endings.write_bytes(log.read_bytes().replace(b"\r\n", b"\n"))
+            if endings.read_bytes() != log.read_bytes():
+                self.assertGreater(self.call("file_diff", {"leftPath": str(log), "rightPath": str(endings)})["changeCount"], 0)
+            self.assertEqual(self.call("binary_pattern_search", {"path": str(log), "pattern": "74 77 ??"})["offsets"], [log.read_bytes().find(b"two")])
+            boundary = root / "boundary.bin"
+            boundary.write_bytes(b"x" * 65535 + b"\x01\x02\x03")
+            self.assertEqual(self.call("binary_pattern_search", {"path": str(boundary), "pattern": "01 ?? 03"})["offsets"], [65535])
+            converted = root / "utf16.txt"
+            self.call("text_transcode", {"source": str(log), "destination": str(converted), "encoding": "utf16le",
+                                         "lineEndings": "crlf"})
+            self.assertTrue(converted.read_bytes().startswith(b"\xff\xfe"))
+            self.assertIn("four", self.call("file_tail", {"path": str(converted)})["text"])
+
+            archive = root / "sample.zip"
+            with zipfile.ZipFile(archive, "w") as z:
+                z.writestr("one.txt", "first")
+                z.writestr("two.txt", "second")
+            inspected = self.call("archive_inspect", {"archive": str(archive)})
+            self.assertEqual(inspected["entryCount"], 2)
+            self.assertEqual(inspected["entries"][0]["name"], "one.txt")
+            destination = root / "selected"
+            extracted = self.call("archive_extract_selected", {"archive": str(archive),
+                "destination": str(destination), "entries": ["two.txt"]})
+            self.assertEqual(extracted["fileCount"], 1)
+            self.assertEqual((destination / "two.txt").read_text(), "second")
+            self.assertFalse((destination / "one.txt").exists())
+            unsafe = root / "unsafe.zip"
+            with zipfile.ZipFile(unsafe, "w") as z:
+                z.writestr("../escape.txt", "bad")
+            self.assertEqual(self.call("archive_inspect", {"archive": str(unsafe)})["unsafeEntryCount"], 1)
+            blocked = self.request("tools/call", {"name":"archive_extract_selected", "arguments": {
+                "archive":str(unsafe), "destination":str(root / "blocked"), "entries":["../escape.txt"]}})
+            self.assertTrue(blocked["result"]["isError"])
+            self.assertFalse((root / "blocked").exists())
+
+            png = root / "image.png"
+            png.write_bytes(base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/yXcAAAAASUVORK5CYII="))
+            image = self.call("image_inspect", {"path": str(png)})
+            self.assertEqual((image["width"], image["height"], image["format"]), (1, 1, "png"))
+            if os.name == "nt":
+                hardware = self.call("hardware_inventory", {})
+                self.assertIn("cpu", hardware)
+                self.assertIn("dxgiAdapters", hardware)
+                with log.open("rb"):
+                    holders = self.call("file_lock_holders", {"path": str(log)})
+                self.assertIn("processes", holders)
+                self.assertIn(os.getpid(), [row["pid"] for row in holders["processes"]])
+                pe = self.call("pe_inspect", {"path": EXE, "limit": 10})
+                self.assertGreater(pe["sectionCount"], 0)
+            discarded = root / "discard.txt"
+            discarded.write_text("discard", encoding="utf-8")
+            self.assertTrue(self.call("file_trash", {"path": str(discarded)})["trashed"])
+            self.assertFalse(discarded.exists())
+            permanent = root / "permanent.txt"
+            permanent.write_text("delete", encoding="utf-8")
+            self.assertTrue(self.call("file_trash", {"path": str(permanent), "permanent": True})["permanentlyDeleted"])
+            self.assertFalse(permanent.exists())
+
+    def test_download_file_hash_and_failure(self):
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b"downloaded")
+            def log_message(self, *_args):
+                pass
+        server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+        worker = threading.Thread(target=server.serve_forever, daemon=True)
+        worker.start()
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                target = Path(tmp) / "download.bin"
+                url = f"http://127.0.0.1:{server.server_port}/file"
+                failed = self.request("tools/call", {"name":"http_download_file", "arguments": {
+                    "url":url,"path":str(target),"expectedSha256":"0"*64}})
+                self.assertTrue(failed["result"]["isError"])
+                self.assertFalse(target.exists())
+                digest = hashlib.sha256(b"downloaded").hexdigest()
+                saved = self.call("http_download_file", {"url":url,"path":str(target),"expectedSha256":digest})
+                self.assertEqual(saved["sha256"], digest)
+                self.assertEqual(target.read_bytes(), b"downloaded")
+        finally:
+            server.shutdown()
+            server.server_close()
+            worker.join(timeout=3)
 
     def test_new_linear_argument_errors(self):
         cases = [

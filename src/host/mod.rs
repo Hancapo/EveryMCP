@@ -1,8 +1,12 @@
 mod archive;
+mod binary_inspect;
 mod data;
 mod dependencies;
+mod file_extra;
 mod files;
+mod hardware;
 mod inspect;
+mod locks;
 mod manifest;
 mod network;
 mod performance;
@@ -23,6 +27,7 @@ pub fn execute(name: &str, args: &Value) -> Result<Value, String> {
         }
         "wait_for" => wait::execute(args),
         "http_request" => network::request(args),
+        "http_download_file" => network::download_file(args),
         "network_probe" => network::probe(args),
         "dns_query" => network::dns_query(args),
         "executable_resolve" => inspect::executable_resolve(args),
@@ -32,6 +37,16 @@ pub fn execute(name: &str, args: &Value) -> Result<Value, String> {
             files::execute(name, args)
         }
         "archive_create" | "archive_extract" => archive::execute(name, args),
+        "archive_inspect" | "archive_extract_selected" => archive::execute(name, args),
+        "hardware_inventory" => hardware::inventory(),
+        "file_tail"
+        | "file_diff"
+        | "file_trash"
+        | "binary_pattern_search"
+        | "image_inspect"
+        | "text_transcode" => file_extra::execute(name, args),
+        "pe_inspect" => binary_inspect::pe_inspect(args),
+        "file_lock_holders" => locks::holders(args),
         "workspace_scan"
         | "repo_status_batch"
         | "command_pipeline"

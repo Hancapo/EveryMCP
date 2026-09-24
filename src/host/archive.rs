@@ -1,4 +1,4 @@
-use super::{io_error, optional_bool, required_str, string_array};
+use super::{io_error, optional_bool, optional_u64, required_str, string_array};
 use serde_json::{Value, json};
 use std::collections::HashSet;
 use std::fs::{self, File};
@@ -12,6 +12,8 @@ pub fn execute(name: &str, args: &Value) -> Result<Value, String> {
     match name {
         "archive_create" => create(args),
         "archive_extract" => extract(args),
+        "archive_inspect" => inspect(args),
+        "archive_extract_selected" => extract_selected(args),
         _ => unreachable!(),
     }
 }
@@ -129,7 +131,58 @@ fn safe_target(destination: &Path, relative: &Path) -> Result<PathBuf, String> {
     Ok(target)
 }
 
+fn inspect(args: &Value) -> Result<Value, String> {
+    let path = Path::new(required_str(args, "archive")?);
+    let limit = optional_u64(args, "limit", 200, 10000)? as usize;
+    if limit == 0 {
+        return Err("'limit' must be at least 1.".into());
+    }
+    let file = File::open(path).map_err(|e| io_error("Cannot open archive", e))?;
+    let mut zip = ZipArchive::new(file).map_err(|e| io_error("Invalid ZIP archive", e))?;
+    let mut entries = Vec::new();
+    let mut total = 0u64;
+    let mut unsafe_count = 0usize;
+    let mut returned_name_bytes = 0usize;
+    for index in 0..zip.len() {
+        let entry = zip
+            .by_index_raw(index)
+            .map_err(|e| io_error("Invalid ZIP entry", e))?;
+        total = total.saturating_add(entry.size());
+        let unsafe_path = entry.enclosed_name().is_none()
+            || entry.unix_mode().is_some_and(|m| m & 0o170000 == 0o120000);
+        if unsafe_path {
+            unsafe_count += 1;
+        }
+        if entries.len() < limit
+            && returned_name_bytes.saturating_add(entry.name().len()) <= 512 * 1024
+        {
+            returned_name_bytes += entry.name().len();
+            entries.push(
+                json!({"name":entry.name(),"directory":entry.is_dir(),"sizeBytes":entry.size(),
+                "compressedBytes":entry.compressed_size(),"crc32":format!("{:08x}",entry.crc32()),
+                "encrypted":entry.encrypted(),"unsafePath":unsafe_path}),
+            );
+        }
+    }
+    Ok(
+        json!({"archive":path.to_string_lossy(),"entryCount":zip.len(),"totalUncompressedBytes":total,
+        "unsafeEntryCount":unsafe_count,"truncated":entries.len()<zip.len(),"entries":entries}),
+    )
+}
+
+fn extract_selected(args: &Value) -> Result<Value, String> {
+    let entries = string_array(args, "entries", true)?;
+    if entries.is_empty() {
+        return Err("'entries' must not be empty.".into());
+    }
+    extract_impl(args, Some(entries))
+}
+
 fn extract(args: &Value) -> Result<Value, String> {
+    extract_impl(args, None)
+}
+
+fn extract_impl(args: &Value, selected: Option<Vec<String>>) -> Result<Value, String> {
     let archive_path = Path::new(required_str(args, "archive")?);
     let destination = Path::new(required_str(args, "destination")?);
     let overwrite = optional_bool(args, "overwrite", false)?;
@@ -146,13 +199,27 @@ fn extract(args: &Value) -> Result<Value, String> {
     if zip.len() > 10000 {
         return Err("Archive has more than 10000 entries.".into());
     }
+    let selected = selected.map(|items| items.into_iter().collect::<HashSet<_>>());
+    let mut found = HashSet::new();
     let mut total = 0u64;
     let mut output_paths = Vec::new();
     let mut seen_paths = HashSet::new();
     for index in 0..zip.len() {
+        let raw = zip
+            .by_index_raw(index)
+            .map_err(|e| io_error("Invalid ZIP entry", e))?;
+        let name = raw.name().to_owned();
+        if selected
+            .as_ref()
+            .is_some_and(|items| !items.contains(&name))
+        {
+            continue;
+        }
+        drop(raw);
         let entry = zip
             .by_index(index)
             .map_err(|e| io_error("Invalid ZIP entry", e))?;
+        found.insert(name);
         let relative = entry
             .enclosed_name()
             .ok_or("Archive entry has an unsafe path.")?;
@@ -175,13 +242,19 @@ fn extract(args: &Value) -> Result<Value, String> {
         if output.exists() && !entry.is_dir() && !overwrite {
             return Err(format!("Output '{}' already exists.", output.display()));
         }
-        output_paths.push(output);
+        output_paths.push((index, output));
+    }
+    if let Some(ref selected) = selected {
+        let missing: Vec<_> = selected.difference(&found).cloned().collect();
+        if !missing.is_empty() {
+            return Err(format!("ZIP entries not found: {}", missing.join(", ")));
+        }
     }
     fs::create_dir_all(destination).map_err(|e| io_error("Cannot create destination", e))?;
     let mut count = 0usize;
-    for (index, output) in output_paths.iter().enumerate() {
+    for (index, output) in &output_paths {
         let mut entry = zip
-            .by_index(index)
+            .by_index(*index)
             .map_err(|e| io_error("Invalid ZIP entry", e))?;
         if entry.is_dir() {
             fs::create_dir_all(output)
@@ -205,5 +278,7 @@ fn extract(args: &Value) -> Result<Value, String> {
             count += 1;
         }
     }
-    Ok(json!({"destination":destination.to_string_lossy(),"fileCount":count,"outputBytes":total}))
+    Ok(
+        json!({"destination":destination.to_string_lossy(),"fileCount":count,"outputBytes":total,"selected":selected.is_some()}),
+    )
 }

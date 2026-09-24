@@ -1,6 +1,6 @@
 # EveryMCP tool guide
 
-EveryMCP exposes 126 tools. This guide gives each tool's purpose and one practical use case. Call `tools/list` for the authoritative JSON schema, supported options, and current descriptions.
+EveryMCP exposes 138 tools. This guide gives each tool's purpose and one practical use case. Call `tools/list` for the authoritative JSON schema, supported options, and current descriptions.
 
 A tool call uses the standard MCP envelope:
 
@@ -182,3 +182,20 @@ The Windows administration tools in this section require Windows. `system_info` 
 | `eventlog_follow` | Read Windows Event Log records after an ID and return a cursor. | Poll for new application events during a test. |
 | `performance_sample` | Sample CPU, memory, network transfer, and disk capacity. | Record resource usage before and after a workload. |
 | `acl_get` | Read a Windows path's owner, SDDL, and access entries. | Diagnose why a process cannot read a file. |
+
+## Additional host operations
+
+| Tool | What to use it for | Example use case |
+| --- | --- | --- |
+| `hardware_inventory` | Read Windows CPU, GPU, RAM module, driver, and OS details. | Identify exact hardware in a bug report. |
+| `archive_inspect` | List ZIP entries, sizes, CRC values, encryption flags, and unsafe paths. | Review an archive before unpacking it. |
+| `archive_extract_selected` | Extract named ZIP entries with full extraction safety checks. | Retrieve one config file from a large package. |
+| `http_download_file` | Stream an HTTP(S) download to disk with optional SHA-256 verification. | Fetch and verify a release artifact. |
+| `file_tail` | Read recent UTF-8 or BOM-marked UTF-16 log lines, or continue from a byte cursor. | Follow a build log after a long-running command. |
+| `file_lock_holders` | Ask Windows Restart Manager which processes are using a file. | Find the application preventing a file replacement. |
+| `file_diff` | Compare UTF-8 lines or individual bytes with bounded changes and hashes. | Inspect changed generated outputs. |
+| `file_trash` | Move a path to the OS Recycle Bin or Trash; `permanent: true` explicitly deletes it. | Remove a stale artifact while keeping it recoverable. |
+| `binary_pattern_search` | Search binary files for hex byte patterns with `??` wildcards. | Locate an instruction signature in a binary. |
+| `pe_inspect` | Inspect an on-disk PE image's headers, sections, imports, exports, and certificate-table presence. | Understand a binary's architecture and dependencies. |
+| `image_inspect` | Read image dimensions, format, transparency hints, and EXIF tags. | Check an asset's dimensions before use. |
+| `text_transcode` | Convert UTF-8 or BOM-marked UTF-16 encoding and line endings atomically. | Make a Windows text file UTF-8 with LF endings. |
