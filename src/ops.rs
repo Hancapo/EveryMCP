@@ -49,6 +49,7 @@ pub fn execute(name: &str, args: &Value) -> Result<Value, String> {
         | "executable_resolve"
         | "directory_manifest"
         | "file_signature"
+        | "file_open"
         | "scheduled_task"
         | "eventlog_follow"
         | "performance_sample"

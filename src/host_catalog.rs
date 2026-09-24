@@ -12,6 +12,14 @@ type ToolSpec = (
 pub fn append(tools: &mut Vec<Value>) {
     let specs: &[ToolSpec] = &[
         (
+            "file_open",
+            "Open an existing file or directory with the Windows shell, or reveal and select it in Explorer. Opening an executable or script may run it.",
+            &[("path", "string")],
+            &[("mode", "fileOpenMode")],
+            false,
+            false,
+        ),
+        (
             "artifact_manifest",
             "Hash a directory into a stable artifact snapshot, optionally saving JSON outside or inside the tree.",
             &[("root", "string")],

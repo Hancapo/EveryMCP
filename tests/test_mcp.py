@@ -65,7 +65,7 @@ class McpTests(unittest.TestCase):
         self.assertEqual(discovered["_meta"]["io.modelcontextprotocol/serverInfo"]["name"], "EveryMCP")
         listed = self.request("tools/list", self.modern_params())["result"]
         self.assertEqual(listed["resultType"], "complete")
-        self.assertEqual(len(listed["tools"]), 125)
+        self.assertEqual(len(listed["tools"]), 126)
         called = self.request("tools/call", self.modern_params(name="add", arguments={
             "firstNumber": 2, "secondNumber": 3}))["result"]
         self.assertEqual(called["resultType"], "complete")
@@ -98,7 +98,7 @@ class McpTests(unittest.TestCase):
         })
         self.assertEqual(response["result"]["protocolVersion"], "2025-06-18")
         listed = self.request("tools/list", {"_meta": {"progressToken": 2}})
-        self.assertEqual(len(listed["result"]["tools"]), 125)
+        self.assertEqual(len(listed["result"]["tools"]), 126)
 
     def test_initialize_and_catalog(self):
         response = self.request("initialize", {"protocolVersion": "2025-06-18", "capabilities": {},
@@ -134,7 +134,7 @@ class McpTests(unittest.TestCase):
                                  "archive_create", "archive_extract", "powershell_run",
                                  "process_input", "wait_for", "file_patch", "http_request",
                                  "network_probe", "dns_query", "executable_resolve",
-                                 "directory_manifest", "file_signature", "scheduled_task",
+                                 "directory_manifest", "file_signature", "file_open", "scheduled_task",
                             "eventlog_follow", "performance_sample", "acl_get",
                             "workspace_scan", "repo_status_batch", "command_pipeline",
                             "environment_snapshot", "file_watch", "structured_data_query",
@@ -189,6 +189,25 @@ class McpTests(unittest.TestCase):
             self.assertTrue(denied["result"]["isError"])
             self.call("file_write_atomic", {"path": str(source), "content": "new", "overwrite": True})
             self.assertEqual(source.read_text(), "new")
+
+    def test_file_open_validates_mode_and_existing_path(self):
+        tool = next(tool for tool in self.request("tools/list")["result"]["tools"]
+                    if tool["name"] == "file_open")
+        self.assertEqual(tool["inputSchema"]["properties"]["mode"]["enum"], ["open", "reveal"])
+        self.assertFalse(tool["annotations"]["readOnlyHint"])
+        with tempfile.TemporaryDirectory() as tmp:
+            source = Path(tmp) / "image.png"
+            source.write_bytes(b"not a real image")
+            invalid_mode = self.request("tools/call", {"name": "file_open", "arguments": {
+                "path": str(source), "mode": "execute",
+            }})
+            self.assertTrue(invalid_mode["result"]["isError"])
+            self.assertIn("mode", invalid_mode["result"]["content"][0]["text"])
+            missing = self.request("tools/call", {"name": "file_open", "arguments": {
+                "path": str(Path(tmp) / "missing.zip"), "mode": "reveal",
+            }})
+            self.assertTrue(missing["result"]["isError"])
+            self.assertIn("existing", missing["result"]["content"][0]["text"])
 
     def test_archive_rejects_parent_traversal(self):
         with tempfile.TemporaryDirectory() as tmp:

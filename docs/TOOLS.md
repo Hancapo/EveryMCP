@@ -1,6 +1,6 @@
 # EveryMCP tool guide
 
-EveryMCP exposes 125 tools. This guide gives each tool's purpose and one practical use case. Call `tools/list` for the authoritative JSON schema, supported options, and current descriptions.
+EveryMCP exposes 126 tools. This guide gives each tool's purpose and one practical use case. Call `tools/list` for the authoritative JSON schema, supported options, and current descriptions.
 
 A tool call uses the standard MCP envelope:
 
@@ -177,6 +177,7 @@ The Windows administration tools in this section require Windows. `system_info` 
 | `system_info` | Read OS, CPU, and memory information. | Record the host configuration for a benchmark report. |
 | `powershell_run` | Run a bounded PowerShell script on Windows. | Invoke an existing maintenance script when no dedicated tool covers it. |
 | `file_signature` | Inspect a Windows file's Authenticode status, signer, and version. | Verify the signer of an installed executable. |
+| `file_open` | Open a file or folder with its Windows association, or use `mode: "reveal"` to select it in Explorer. Opening an executable or script may run it. | Reveal a ZIP in Explorer, or open an image in its default viewer. |
 | `scheduled_task` | List, inspect, run, stop, enable, disable, register, or unregister Windows tasks. | Check whether a scheduled backup is enabled. |
 | `eventlog_follow` | Read Windows Event Log records after an ID and return a cursor. | Poll for new application events during a test. |
 | `performance_sample` | Sample CPU, memory, network transfer, and disk capacity. | Record resource usage before and after a workload. |

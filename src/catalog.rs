@@ -631,6 +631,7 @@ fn schema(kind: &str) -> Value {
         "number[]" => json!({"type":"array","items":{"type":"number"}}),
         "string[]" => json!({"type":"array","items":{"type":"string"}}),
         "stringMap" => json!({"type":"object","additionalProperties":{"type":"string"}}),
+        "fileOpenMode" => json!({"type":"string","enum":["open","reveal"],"default":"open"}),
         "pipelineSteps" => {
             json!({"type":"array","minItems":1,"maxItems":32,"items":{"type":"object","properties":{
             "executable":{"type":"string"},"arguments":{"type":"array","items":{"type":"string"}},
