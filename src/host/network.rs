@@ -1,9 +1,11 @@
-use super::{io_error, optional_str, optional_u64, required_str, required_u64};
+use super::{io_error, optional_bool, optional_str, optional_u64, required_str, required_u64};
 use hickory_resolver::{Resolver, proto::rr::RecordType};
 use native_tls::TlsConnector;
 use serde_json::{Value, json};
-use std::io::Read;
+use sha2::{Digest, Sha256};
+use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpStream, ToSocketAddrs};
+use std::path::Path;
 use std::time::Duration;
 use ureq::{Agent, http};
 
@@ -73,6 +75,85 @@ pub fn request(args: &Value) -> Result<Value, String> {
     };
     Ok(
         json!({"status":status,"headers":headers,"body":body,"bodyEncoding":encoding,"bodyBytes":bytes.len(),"truncated":truncated}),
+    )
+}
+
+pub fn download_file(args: &Value) -> Result<Value, String> {
+    let url = required_str(args, "url")?;
+    if !url.starts_with("https://") && !url.starts_with("http://") {
+        return Err("'url' must use http or https.".into());
+    }
+    let path = Path::new(required_str(args, "path")?);
+    let overwrite = optional_bool(args, "overwrite", false)?;
+    if path.exists() && !overwrite {
+        return Err("Destination already exists.".into());
+    }
+    let max_bytes = optional_u64(args, "maxBytes", 512 * 1024 * 1024, 4 * 1024 * 1024 * 1024)?;
+    if max_bytes == 0 {
+        return Err("'maxBytes' must be positive.".into());
+    }
+    let expected = optional_str(args, "expectedSha256")?;
+    if let Some(value) = expected
+        && (value.len() != 64 || !value.bytes().all(|b| b.is_ascii_hexdigit()))
+    {
+        return Err("'expectedSha256' must contain 64 hex digits.".into());
+    }
+    let timeout = optional_u64(args, "timeoutMs", 300000, 3600000)?;
+    let agent = Agent::config_builder()
+        .timeout_global(Some(Duration::from_millis(timeout)))
+        .http_status_as_error(false)
+        .max_redirects(5)
+        .build()
+        .new_agent();
+    let mut response = agent
+        .get(url)
+        .call()
+        .map_err(|e| io_error("Download failed", e))?;
+    let status = response.status().as_u16();
+    if !(200..300).contains(&status) {
+        return Err(format!("Download returned HTTP {status}."));
+    }
+    let parent = path
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
+    let mut temp = tempfile::NamedTempFile::new_in(parent)
+        .map_err(|e| io_error("Cannot create download temporary file", e))?;
+    let mut reader = response.body_mut().as_reader();
+    let mut hasher = Sha256::new();
+    let mut total = 0u64;
+    let mut buf = [0u8; 65536];
+    loop {
+        let n = reader
+            .read(&mut buf)
+            .map_err(|e| io_error("Cannot read download", e))?;
+        if n == 0 {
+            break;
+        }
+        total = total
+            .checked_add(n as u64)
+            .ok_or("Download size overflow.")?;
+        if total > max_bytes {
+            return Err("Download exceeds maxBytes.".into());
+        }
+        hasher.update(&buf[..n]);
+        temp.write_all(&buf[..n])
+            .map_err(|e| io_error("Cannot write download", e))?;
+    }
+    let digest = super::files::digest_hex(&hasher.finalize());
+    if expected.is_some_and(|value| !digest.eq_ignore_ascii_case(value)) {
+        return Err("Downloaded SHA-256 does not match expectedSha256.".into());
+    }
+    temp.flush()
+        .map_err(|e| io_error("Cannot flush download", e))?;
+    let result = if overwrite {
+        temp.persist(path)
+    } else {
+        temp.persist_noclobber(path)
+    };
+    result.map_err(|e| io_error("Cannot persist download", e.error))?;
+    Ok(
+        json!({"url":url,"path":path.to_string_lossy(),"status":status,"bytesWritten":total,"sha256":digest}),
     )
 }
 

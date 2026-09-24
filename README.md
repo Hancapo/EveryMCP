@@ -1,6 +1,6 @@
 # EveryMCP
 
-A native Rust MCP server with **126 tools** for mathematics, reverse engineering, geometry, and local system automation. It includes the 22 operations from [math-mcp](https://github.com/EthanHenrickson/math-mcp) with their original names and arguments; no code or dependencies are copied from that project.
+A native Rust MCP server with **138 tools** for mathematics, reverse engineering, geometry, and local system automation. It includes the 22 operations from [math-mcp](https://github.com/EthanHenrickson/math-mcp) with their original names and arguments; no code or dependencies are copied from that project.
 
 ## Build
 
@@ -30,10 +30,10 @@ Example client configuration:
 | Reverse engineering | Integer and bit operations, address translation, PE mapping and relocations, binary packing, floating-point decoding, and checksums. |
 | Geometry and linear algebra | 2D/3D intersections, transforms, quaternions, vector operations, and matrices up to 32 × 32. |
 | Processes | Start, run, inspect, list, send stdin, read output incrementally, wait for, and stop processes; inspect loaded modules. |
-| Files and ZIP | Find and search files, read byte ranges, hash, write, patch with preconditions, copy, move, create ZIP archives, and extract them. |
-| HTTP and readiness | Make bounded HTTP requests, query DNS, probe TCP/TLS, and wait for files, process exits, TCP ports, or HTTP status. |
-| Inspection | Resolve executables, inventory directories with hashes, and inspect Windows file signatures. |
-| Windows | Open files with their associated app or reveal them in Explorer; inspect ports, services, tasks, event logs, ACLs, registry values, and environment variables. |
+| Files and ZIP | Find, compare, tail, hash, transcode, inspect images, search binary patterns, write, patch, copy, trash, create ZIP archives, inspect them, and extract all or selected entries. |
+| HTTP and readiness | Make bounded HTTP requests, stream verified downloads to disk, query DNS, probe TCP/TLS, and wait for files, process exits, TCP ports, or HTTP status. |
+| Inspection | Resolve executables, inventory directories with hashes, inspect PE images, and inspect Windows file signatures. |
+| Windows | Open files or reveal them in Explorer; inspect hardware, file lock holders, ports, services, tasks, event logs, ACLs, registry values, and environment variables. |
 | Telemetry | Sample CPU, memory, network transfer, and disk capacity. |
 | Workspace | Discover projects and Git status, run command pipelines, capture environments, and wait for file changes. |
 | Structured data | Query and compare JSON, TOML, YAML, XML and CSV; inventory declared and resolved dependencies. |

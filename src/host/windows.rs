@@ -62,7 +62,7 @@ fn powershell(
     super::process::run_capture(command, timeout, max_output)
 }
 
-fn powershell_json(body: &str, args: &Value, timeout: u64) -> Result<Value, String> {
+pub(super) fn powershell_json(body: &str, args: &Value, timeout: u64) -> Result<Value, String> {
     let script = format!(
         "$ErrorActionPreference = 'Stop'; $a = $env:EVERYMCP_ARGS | ConvertFrom-Json; $result = & {{ {body} }}; ConvertTo-Json -InputObject $result -Depth 12 -Compress"
     );
