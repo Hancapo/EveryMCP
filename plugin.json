@@ -1,0 +1,34 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "everymcp",
+  "version": "1.10.0",
+  "description": "151 native tools for mathematics, geometry, binary analysis, files, and Windows host automation.",
+  "author": {
+    "name": "Hancapo",
+    "url": "https://github.com/Hancapo"
+  },
+  "homepage": "https://github.com/Hancapo/EveryMCP",
+  "repository": "https://github.com/Hancapo/EveryMCP",
+  "keywords": ["math", "geometry", "reverse-engineering", "files", "windows", "processes"],
+  "extensions": {
+    "com.openai": {
+      "requires_local_executor": true,
+      "interface": {
+        "displayName": "EveryMCP",
+        "shortDescription": "Math, files and Windows tools",
+        "longDescription": "Run 151 native tools for exact arithmetic, vectors, matrices, geometry, PE analysis, binary inspection, archives, structured data, images, and Windows processes. Includes the Windows x64 executable and requires a desktop session with local execution. Tools run with your account's permissions; file changes, process control, commands, and network requests occur only when those tools are called.",
+        "developerName": "Hancapo",
+        "category": "Productivity",
+        "capabilities": ["Read", "Write"],
+        "logo": "./assets/everymcp.svg",
+        "composerIcon": "./assets/everymcp.svg",
+        "websiteURL": "https://github.com/Hancapo/EveryMCP",
+        "defaultPrompt": [
+          "Inspect this process and its loaded modules.",
+          "Compare these files and check this ZIP archive.",
+          "Verify this calculation using exact arithmetic or matrix operations."
+        ]
+      }
+    }
+  }
+}
