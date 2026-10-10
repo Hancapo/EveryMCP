@@ -71,25 +71,37 @@ fn find(args: &Value) -> Result<Value, String> {
     let pattern = wildcard(optional_str(args, "pattern")?.unwrap_or("*"))?;
     let recursive = optional_bool(args, "recursive", true)?;
     let limit = optional_u64(args, "limit", 100, 1000)? as usize;
+    let offset = optional_u64(args, "offset", 0, usize::MAX as u64)? as usize;
     if limit == 0 {
         return Err("'limit' must be at least 1.".into());
     }
     let mut entries = Vec::new();
-    let walker = WalkDir::new(root).max_depth(if recursive { usize::MAX } else { 1 });
+    let walker = WalkDir::new(root)
+        .sort_by_file_name()
+        .max_depth(if recursive { usize::MAX } else { 1 });
+    let mut skipped = 0usize;
+    let mut more = false;
     for entry in walker.into_iter().skip(1) {
         let entry = entry.map_err(|e| io_error("Directory traversal failed", e))?;
         if !pattern.is_match(&entry.file_name().to_string_lossy()) {
             continue;
         }
+        if skipped < offset {
+            skipped += 1;
+            continue;
+        }
+        if entries.len() == limit {
+            more = true;
+            break;
+        }
         let meta = entry
             .metadata()
             .map_err(|e| io_error("Cannot stat entry", e))?;
         entries.push(json!({"path":entry.path().to_string_lossy(),"isDirectory":meta.is_dir(),"sizeBytes":meta.len()}));
-        if entries.len() >= limit {
-            break;
-        }
     }
-    Ok(json!({"entries":entries,"limitReached":entries.len() >= limit}))
+    Ok(
+        json!({"nextOffset":if more {Some(offset+entries.len())}else{None},"offset":offset,"entries":entries,"limitReached":more}),
+    )
 }
 
 fn search(args: &Value) -> Result<Value, String> {
@@ -206,6 +218,7 @@ pub(super) fn manifest(args: &Value) -> Result<Value, String> {
     }
     let hash_files = optional_bool(args, "hashFiles", false)?;
     let limit = optional_u64(args, "limit", 1000, MAX_COLLECTION_ENTRIES as u64)? as usize;
+    let offset = optional_u64(args, "offset", 0, usize::MAX as u64)? as usize;
     if limit == 0 {
         return Err("'limit' must be at least 1.".into());
     }
@@ -214,8 +227,16 @@ pub(super) fn manifest(args: &Value) -> Result<Value, String> {
     let mut directory_count = 0;
     let mut total_bytes = 0u64;
     let mut limit_reached = false;
-    for entry in WalkDir::new(root).sort_by_file_name().into_iter().skip(1) {
+    for (index, entry) in WalkDir::new(root)
+        .sort_by_file_name()
+        .into_iter()
+        .skip(1)
+        .enumerate()
+    {
         let entry = entry.map_err(|e| io_error("Cannot traverse directory", e))?;
+        if index < offset {
+            continue;
+        }
         if entries.len() == limit {
             limit_reached = true;
             break;
@@ -251,7 +272,7 @@ pub(super) fn manifest(args: &Value) -> Result<Value, String> {
         entries.push(json!({"path":relative,"kind":kind,"sizeBytes":size,"modifiedUnixMs":modified_ms(&metadata),"sha256":digest}));
     }
     Ok(
-        json!({"root":root.to_string_lossy(),"entries":entries,"fileCount":file_count,"directoryCount":directory_count,"totalBytes":total_bytes,"limitReached":limit_reached}),
+        json!({"root":root.to_string_lossy(),"nextOffset":if limit_reached{Some(offset+entries.len())}else{None},"offset":offset,"entries":entries,"fileCount":file_count,"directoryCount":directory_count,"totalBytes":total_bytes,"limitReached":limit_reached}),
     )
 }
 
@@ -281,7 +302,15 @@ fn read_range(args: &Value) -> Result<Value, String> {
     Ok(json!({"data":output,"bytesRead":count,"encoding":encoding,"offset":offset}))
 }
 
-fn persist_bytes(path: &Path, content: &[u8], overwrite: bool) -> Result<(), String> {
+pub(super) fn persist_bytes(path: &Path, content: &[u8], overwrite: bool) -> Result<(), String> {
+    persist_reader(path, &mut std::io::Cursor::new(content), overwrite).map(|_| ())
+}
+
+pub(super) fn persist_reader(
+    path: &Path,
+    reader: &mut impl Read,
+    overwrite: bool,
+) -> Result<u64, String> {
     let parent = path
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
@@ -291,8 +320,8 @@ fn persist_bytes(path: &Path, content: &[u8], overwrite: bool) -> Result<(), Str
     }
     let mut temp = tempfile::NamedTempFile::new_in(parent)
         .map_err(|e| io_error("Cannot create temporary file", e))?;
-    temp.write_all(content)
-        .map_err(|e| io_error("Cannot write temporary file", e))?;
+    let count =
+        std::io::copy(reader, &mut temp).map_err(|e| io_error("Cannot write temporary file", e))?;
     temp.flush()
         .map_err(|e| io_error("Cannot flush temporary file", e))?;
     let persist = if overwrite {
@@ -301,7 +330,7 @@ fn persist_bytes(path: &Path, content: &[u8], overwrite: bool) -> Result<(), Str
         temp.persist_noclobber(path)
     };
     persist.map_err(|e| io_error("Cannot persist file", e.error))?;
-    Ok(())
+    Ok(count)
 }
 
 fn write_atomic(args: &Value) -> Result<Value, String> {

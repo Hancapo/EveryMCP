@@ -1,13 +1,18 @@
 mod archive;
 mod binary_inspect;
+mod binary_tools;
 mod data;
 mod dependencies;
+mod directory_tools;
 mod file_extra;
 mod files;
 mod hardware;
+mod image_compare;
 mod inspect;
+mod json_edit;
 mod locks;
 mod manifest;
+mod minidump;
 mod network;
 mod performance;
 mod process;
@@ -16,6 +21,7 @@ mod reports;
 mod shell;
 mod wait;
 mod windows;
+mod windows_inspect;
 mod workspace;
 
 use serde_json::Value;
@@ -30,6 +36,16 @@ pub fn execute(name: &str, args: &Value) -> Result<Value, String> {
         }
         "wait_for" => wait::execute(args),
         "http_request" => network::request(args),
+        "json_patch" => json_edit::patch(args),
+        "image_compare" => image_compare::compare(args),
+        "directory_size" | "file_duplicates" | "directory_sync" => {
+            directory_tools::execute(name, args)
+        }
+        "process_connections" | "process_memory_map" => windows_inspect::execute(name, args),
+        "minidump_inspect" => minidump::inspect(args),
+        "binary_strings" | "binary_entropy" | "pe_dependencies" => {
+            binary_tools::execute(name, args)
+        }
         "http_download_file" => network::download_file(args),
         "network_probe" => network::probe(args),
         "dns_query" => network::dns_query(args),
@@ -40,7 +56,9 @@ pub fn execute(name: &str, args: &Value) -> Result<Value, String> {
             files::execute(name, args)
         }
         "archive_create" | "archive_extract" => archive::execute(name, args),
-        "archive_inspect" | "archive_extract_selected" => archive::execute(name, args),
+        "archive_inspect" | "archive_extract_selected" | "archive_test" => {
+            archive::execute(name, args)
+        }
         "hardware_inventory" => hardware::inventory(),
         "file_tail"
         | "file_diff"

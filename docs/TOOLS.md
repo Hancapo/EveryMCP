@@ -1,6 +1,6 @@
 # EveryMCP tool guide
 
-EveryMCP exposes 139 tools. This guide gives each tool's purpose and one practical use case. Call `tools/list` for the authoritative JSON schema, supported options, and current descriptions.
+EveryMCP exposes 151 tools. This guide gives each tool's purpose and one practical use case. Call `tools/list` for the authoritative JSON schema, supported options, and current descriptions.
 
 A tool call uses the standard MCP envelope:
 
@@ -25,6 +25,12 @@ The following maximum counts are inclusive:
 | `file_patch` | `expectedMatches` up to 100,000; default 1. |
 
 Byte limits still apply: ZIP extraction is capped at 1 GiB, ZIP inspection returns at most 512 KiB of entry names, structured input (including saved manifests) is capped at 8 MiB, and structured query results at 1 MiB. Use a query pointer to select a small result from a large CSV.
+
+## Pagination
+
+`archive_inspect`, `directory_manifest`, and `file_find` accept an optional zero-based entry `offset`. Pass the returned `nextOffset` into the next request with the same source, filter and limit; `null` marks the end. Directory results use a sorted traversal and their counts describe the returned page. These are live listings: changes to a source between calls can shift entries.
+
+`binary_pattern_search` returns a byte `nextOffset` to pass as `startOffset`, including overlapping matches. `binary_strings` and `binary_entropy` use byte `offset`/`nextOffset`; `process_memory_map` uses region indices. Process maps can change between requests.
 
 ## Basic arithmetic, trigonometry, and aggregates
 
@@ -216,6 +222,29 @@ The Windows administration tools in this section require Windows. `system_info` 
 | `pe_inspect` | Inspect an on-disk PE image's headers, sections, imports, exports, and certificate-table presence. | Understand a binary's architecture and dependencies. |
 | `image_inspect` | Read image dimensions, format, transparency hints, and EXIF tags. | Check an asset's dimensions before use. |
 | `text_transcode` | Convert UTF-8 or BOM-marked UTF-16 encoding and line endings atomically. | Make a Windows text file UTF-8 with LF endings. |
+
+## Storage, inspection, and editing
+
+| Tool | What to use it for | Example use case |
+| --- | --- | --- |
+| `directory_size` | Rank files and folders by logical byte size, excluding selected basenames. | Find which build outputs consume the most space. |
+| `file_duplicates` | Group equal-size files with matching SHA-256 hashes. | Identify duplicate release artifacts before cleaning up. |
+| `directory_sync` | Preview or apply file changes between non-overlapping trees. | Update a staging folder without copying unchanged files. |
+| `archive_test` | Stream ZIP entries and verify decompression, sizes and CRC values without extracting. | Check a downloaded package for corruption. |
+| `json_patch` | Apply RFC 6902 add/remove/replace/move/copy/test operations atomically to a JSON file. | Change a setting only if its old value is still correct. |
+| `process_connections` | List TCP and UDP endpoints for a Windows PID, including IPv4/IPv6 and TCP state. | Check which services a local application is connected to. |
+| `process_memory_map` | Inspect a Windows process's region types, protections and mapped module paths. | Locate executable or mapped image regions without reading their contents. |
+| `pe_dependencies` | Inspect direct or recursive PE import candidates in explicit search paths. | Detect absent DLLs or a dependency with incompatible architecture. |
+| `binary_strings` | Extract bounded ASCII and UTF-16 strings with byte offsets and literal filtering. | Locate embedded paths or messages in a binary file. |
+| `binary_entropy` | Measure Shannon entropy per block in bits per byte. | Compare uniform and high-variation regions of a file. |
+| `minidump_inspect` | Read minidump exception, thread, scalar register and module metadata. | Obtain an initial summary of a diagnostic dump. |
+| `image_compare` | Count RGBA pixels differing beyond a channel tolerance and optionally save a PNG mask. | Verify whether two rendered assets differ. |
+
+`directory_sync` defaults to `dryRun: true`; applying changes requires `dryRun: false`. Removing destination-only entries additionally requires `delete: true`. It rejects overlapping roots, symlinks/reparse points and file/directory conflicts. File replacements are atomic individually; the whole synchronization is not a transaction. Use stable trees while syncing. Storage/duplicate byte counts are logical and do not account for compression, sparse allocation or hard-link sharing.
+
+`json_patch` takes an `operations` array and optional `expectedSha256`. It preserves numeric precision and compares `test` numbers by value, including nested numbers. Any failed operation leaves the file unchanged; input and output are capped at 8 MiB. JSON input rejects the parser-reserved object key `$serde_json::private::Number` to prevent silent conversions. `archive_test` verifies up to 100,000 entries with at most 1 GiB of decompressed data and reports failures separately from output truncation.
+
+`pe_dependencies` reports static candidates, not guaranteed Windows loader resolution; API-set contracts are reported separately. Entropy does not establish encryption or compression. Minidump inspection does not unwind stacks or resolve symbols. `image_compare` compares the first decoded frame, without EXIF orientation or color-profile normalization, and requires equal dimensions; the PNG mask marks changed pixels magenta and unchanged pixels transparent. Images are limited to 64 MiB compressed input and 16,777,216 pixels each.
 
 ## Dumping a loaded main executable
 

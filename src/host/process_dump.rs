@@ -279,7 +279,7 @@ pub fn dump(args: &Value) -> Result<Value, String> {
 }
 
 #[cfg(windows)]
-mod windows_impl {
+pub(super) mod windows_impl {
     use super::*;
     use crate::host::io_error;
     use serde_json::json;
@@ -300,7 +300,7 @@ mod windows_impl {
         OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ, QueryFullProcessImageNameW,
     };
 
-    struct ProcessHandle(HANDLE);
+    pub(crate) struct ProcessHandle(pub(crate) HANDLE);
     impl Drop for ProcessHandle {
         fn drop(&mut self) {
             unsafe {
