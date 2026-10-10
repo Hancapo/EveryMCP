@@ -1,4 +1,7 @@
-use super::{io_error, optional_bool, optional_str, optional_u64, required_str, required_u64};
+use super::{
+    MAX_COLLECTION_ENTRIES, io_error, optional_bool, optional_str, optional_u64, required_str,
+    required_u64,
+};
 use regex::RegexBuilder;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256, Sha512};
@@ -202,7 +205,7 @@ pub(super) fn manifest(args: &Value) -> Result<Value, String> {
         return Err("'root' must be an existing directory.".into());
     }
     let hash_files = optional_bool(args, "hashFiles", false)?;
-    let limit = optional_u64(args, "limit", 1000, 10000)? as usize;
+    let limit = optional_u64(args, "limit", 1000, MAX_COLLECTION_ENTRIES as u64)? as usize;
     if limit == 0 {
         return Err("'limit' must be at least 1.".into());
     }
@@ -210,8 +213,13 @@ pub(super) fn manifest(args: &Value) -> Result<Value, String> {
     let mut file_count = 0;
     let mut directory_count = 0;
     let mut total_bytes = 0u64;
+    let mut limit_reached = false;
     for entry in WalkDir::new(root).sort_by_file_name().into_iter().skip(1) {
         let entry = entry.map_err(|e| io_error("Cannot traverse directory", e))?;
+        if entries.len() == limit {
+            limit_reached = true;
+            break;
+        }
         let relative = entry
             .path()
             .strip_prefix(root)
@@ -241,11 +249,7 @@ pub(super) fn manifest(args: &Value) -> Result<Value, String> {
             directory_count += 1;
         }
         entries.push(json!({"path":relative,"kind":kind,"sizeBytes":size,"modifiedUnixMs":modified_ms(&metadata),"sha256":digest}));
-        if entries.len() >= limit {
-            break;
-        }
     }
-    let limit_reached = entries.len() >= limit;
     Ok(
         json!({"root":root.to_string_lossy(),"entries":entries,"fileCount":file_count,"directoryCount":directory_count,"totalBytes":total_bytes,"limitReached":limit_reached}),
     )
@@ -324,7 +328,8 @@ fn patch(args: &Value) -> Result<Value, String> {
     if find.is_empty() {
         return Err("'find' must not be empty.".into());
     }
-    let expected_matches = optional_u64(args, "expectedMatches", 1, 10000)? as usize;
+    let expected_matches =
+        optional_u64(args, "expectedMatches", 1, MAX_COLLECTION_ENTRIES as u64)? as usize;
     if expected_matches == 0 {
         return Err("'expectedMatches' must be at least 1.".into());
     }

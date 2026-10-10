@@ -10,6 +10,22 @@ A tool call uses the standard MCP envelope:
 
 For exact integer and binary operations, pass integer values as strings when the schema requests them. Vectors are numeric arrays. Matrix tools use row-major storage unless their description says otherwise. Local host tools run with the permissions of the account that starts the server. Windows-only tools are identified below.
 
+## Collection limits
+
+The following maximum counts are inclusive:
+
+| Tools | Maximum count |
+| --- | --- |
+| `archive_create`, `archive_extract`, `archive_extract_selected` | 100,000 entries in the ZIP, including directories. Selective extraction checks the entire ZIP count. |
+| `archive_inspect` | `limit` up to 100,000 returned entries; default 200. |
+| `directory_manifest` | `limit` up to 100,000 entries; default 1,000. |
+| `artifact_manifest`, `manifest_diff` | 100,000 entries per directory snapshot; `artifact_manifest` uses this default and maximum. |
+| `file_watch` | 100,000 watched files. |
+| `structured_data_query`, `structured_data_diff` | 100,000 CSV data rows, excluding the header. |
+| `file_patch` | `expectedMatches` up to 100,000; default 1. |
+
+Byte limits still apply: ZIP extraction is capped at 1 GiB, ZIP inspection returns at most 512 KiB of entry names, structured input (including saved manifests) is capped at 8 MiB, and structured query results at 1 MiB. Use a query pointer to select a small result from a large CSV.
+
 ## Basic arithmetic, trigonometry, and aggregates
 
 | Tool | What to use it for | Example use case |

@@ -1,4 +1,6 @@
-use super::{io_error, optional_bool, optional_u64, required_str, string_array};
+use super::{
+    MAX_COLLECTION_ENTRIES, io_error, optional_bool, optional_u64, required_str, string_array,
+};
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -269,8 +271,10 @@ fn files_snapshot(root: &Path, recursive: bool) -> Result<BTreeMap<String, FileS
         if !entry.file_type().is_file() {
             continue;
         }
-        if files.len() >= 10000 {
-            return Err("Watched directory has more than 10000 files.".into());
+        if files.len() >= MAX_COLLECTION_ENTRIES {
+            return Err(format!(
+                "Watched directory has more than {MAX_COLLECTION_ENTRIES} files."
+            ));
         }
         let metadata = entry
             .metadata()

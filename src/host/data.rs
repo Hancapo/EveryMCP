@@ -1,4 +1,4 @@
-use super::{io_error, optional_str, optional_u64, required_str};
+use super::{MAX_COLLECTION_ENTRIES, io_error, optional_str, optional_u64, required_str};
 use serde_json::{Map, Value, json};
 use std::collections::BTreeSet;
 use std::path::Path;
@@ -115,8 +115,8 @@ fn parse_csv(source: &str) -> Result<Value, String> {
     }
     let mut rows = Vec::new();
     for record in reader.records() {
-        if rows.len() >= 10000 {
-            return Err("CSV has more than 10000 rows.".into());
+        if rows.len() >= MAX_COLLECTION_ENTRIES {
+            return Err(format!("CSV has more than {MAX_COLLECTION_ENTRIES} rows."));
         }
         let record = record.map_err(|e| io_error("Invalid CSV row", e))?;
         let row: Map<String, Value> = headers

@@ -20,6 +20,8 @@ mod workspace;
 
 use serde_json::Value;
 
+const MAX_COLLECTION_ENTRIES: usize = 100_000;
+
 pub fn execute(name: &str, args: &Value) -> Result<Value, String> {
     match name {
         "process_start" | "process_run" | "process_get" | "process_list" | "process_tree"

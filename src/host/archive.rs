@@ -1,4 +1,6 @@
-use super::{io_error, optional_bool, optional_u64, required_str, string_array};
+use super::{
+    MAX_COLLECTION_ENTRIES, io_error, optional_bool, optional_u64, required_str, string_array,
+};
 use serde_json::{Value, json};
 use std::collections::HashSet;
 use std::fs::{self, File};
@@ -72,8 +74,10 @@ fn create(args: &Value) -> Result<Value, String> {
             return Err(format!("Source '{raw}' is not a file or directory."));
         }
     }
-    if entries.len() > 10000 {
-        return Err("Archive supports at most 10000 entries.".into());
+    if entries.len() > MAX_COLLECTION_ENTRIES {
+        return Err(format!(
+            "Archive supports at most {MAX_COLLECTION_ENTRIES} entries."
+        ));
     }
     let parent = archive_path
         .parent()
@@ -133,7 +137,7 @@ fn safe_target(destination: &Path, relative: &Path) -> Result<PathBuf, String> {
 
 fn inspect(args: &Value) -> Result<Value, String> {
     let path = Path::new(required_str(args, "archive")?);
-    let limit = optional_u64(args, "limit", 200, 10000)? as usize;
+    let limit = optional_u64(args, "limit", 200, MAX_COLLECTION_ENTRIES as u64)? as usize;
     if limit == 0 {
         return Err("'limit' must be at least 1.".into());
     }
@@ -196,8 +200,10 @@ fn extract_impl(args: &Value, selected: Option<Vec<String>>) -> Result<Value, St
     }
     let archive_file = File::open(archive_path).map_err(|e| io_error("Cannot open archive", e))?;
     let mut zip = ZipArchive::new(archive_file).map_err(|e| io_error("Invalid ZIP archive", e))?;
-    if zip.len() > 10000 {
-        return Err("Archive has more than 10000 entries.".into());
+    if zip.len() > MAX_COLLECTION_ENTRIES {
+        return Err(format!(
+            "Archive has more than {MAX_COLLECTION_ENTRIES} entries."
+        ));
     }
     let selected = selected.map(|items| items.into_iter().collect::<HashSet<_>>());
     let mut found = HashSet::new();
