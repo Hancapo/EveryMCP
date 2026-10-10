@@ -46,9 +46,16 @@ pub(super) fn load(path: &Path, format: Option<&str>) -> Result<(String, Value),
     };
     let source = read_text(path)?;
     let value = match format.as_str() {
-        "json" => serde_json::from_str(&source).map_err(|e| io_error("Invalid JSON", e))?,
-        "toml" => toml::from_str(&source).map_err(|e| io_error("Invalid TOML", e))?,
-        "yaml" => serde_yaml_ng::from_str(&source).map_err(|e| io_error("Invalid YAML", e))?,
+        "json" => crate::json_value::parse(&source)?,
+        "toml" => serde_json::to_value(
+            toml::from_str::<toml::Value>(&source).map_err(|e| io_error("Invalid TOML", e))?,
+        )
+        .map_err(|e| io_error("Cannot represent TOML as JSON", e))?,
+        "yaml" => serde_json::to_value(
+            serde_yaml_ng::from_str::<serde_yaml_ng::Value>(&source)
+                .map_err(|e| io_error("Invalid YAML", e))?,
+        )
+        .map_err(|e| io_error("Cannot represent YAML as JSON", e))?,
         "xml" => parse_xml(&source)?,
         "csv" => parse_csv(&source)?,
         _ => return Err("'format' must be json, toml, yaml, xml or csv.".into()),
@@ -225,7 +232,7 @@ fn collect_changes(
                 }
             }
         }
-        _ if left != right => push_change(
+        _ if !crate::json_value::equivalent(left, right) => push_change(
             changes,
             total,
             limit,

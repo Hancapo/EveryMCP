@@ -44,6 +44,28 @@ fn structured_data_query_reads_five_formats_with_one_pointer() {
 }
 
 #[test]
+fn structured_data_query_preserves_parser_reserved_keys_in_toml_and_yaml() {
+    let temp = tempfile::tempdir().unwrap();
+    for (name, source) in [
+        (
+            "reserved.toml",
+            "\"$serde_json::private::Number\" = \"42\"\n",
+        ),
+        ("reserved.yaml", "'$serde_json::private::Number': '42'\n"),
+    ] {
+        let path = temp.path().join(name);
+        std::fs::write(&path, source).unwrap();
+        let response = common::response("structured_data_query", json!({"path":path}));
+        assert_eq!(response["result"]["isError"], false, "{response}");
+        let text = response["result"]["content"][0]["text"].as_str().unwrap();
+        assert!(
+            text.contains(r#""$serde_json::private::Number":"42""#),
+            "{text}"
+        );
+    }
+}
+
+#[test]
 fn xml_parent_does_not_duplicate_child_text() {
     let temp = tempfile::tempdir().unwrap();
     let path = temp.path().join("sample.xml");
@@ -80,6 +102,29 @@ fn structured_data_diff_reports_changed_added_and_removed() {
             .iter()
             .any(|v| v["path"] == "/removed" && v["kind"] == "removed")
     );
+}
+
+#[test]
+fn structured_data_diff_compares_number_values_without_rounding() {
+    let temp = tempfile::tempdir().unwrap();
+    let left = temp.path().join("left.json");
+    let right = temp.path().join("right.json");
+    std::fs::write(
+        &left,
+        r#"{"same":[1.0,1e3,-0.0,0.0000100,1e1000001],"different":18446744073709551617}"#,
+    )
+    .unwrap();
+    std::fs::write(
+        &right,
+        r#"{"same":[1.00,1000.0,0.0,1e-5,10e1000000],"different":18446744073709551618}"#,
+    )
+    .unwrap();
+    let result = call(
+        "structured_data_diff",
+        json!({"leftPath":left,"rightPath":right}),
+    );
+    assert_eq!(result["totalChanges"], 1, "{result}");
+    assert_eq!(result["changes"][0]["path"], "/different");
 }
 
 #[test]

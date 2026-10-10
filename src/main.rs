@@ -6,6 +6,7 @@ mod host;
 mod host_catalog;
 mod input;
 mod integer;
+mod json_value;
 mod linear;
 mod math;
 mod ops;
@@ -43,7 +44,7 @@ fn main() -> io::Result<()> {
 }
 
 fn process(line: &str, tools: &[Value]) -> Option<Value> {
-    let request: Value = match serde_json::from_str(line) {
+    let request: Value = match json_value::parse(line) {
         Ok(value) => value,
         Err(_) => return Some(error(Value::Null, -32700, "Invalid JSON.")),
     };

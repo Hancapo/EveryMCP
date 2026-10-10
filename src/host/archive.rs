@@ -4,7 +4,7 @@ use super::{
 use serde_json::{Value, json};
 use std::collections::HashSet;
 use std::fs::{self, File};
-use std::io;
+use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 use zip::write::SimpleFileOptions;
@@ -15,6 +15,7 @@ pub fn execute(name: &str, args: &Value) -> Result<Value, String> {
         "archive_create" => create(args),
         "archive_extract" => extract(args),
         "archive_inspect" => inspect(args),
+        "archive_test" => test(args),
         "archive_extract_selected" => extract_selected(args),
         _ => unreachable!(),
     }
@@ -138,6 +139,7 @@ fn safe_target(destination: &Path, relative: &Path) -> Result<PathBuf, String> {
 fn inspect(args: &Value) -> Result<Value, String> {
     let path = Path::new(required_str(args, "archive")?);
     let limit = optional_u64(args, "limit", 200, MAX_COLLECTION_ENTRIES as u64)? as usize;
+    let offset = optional_u64(args, "offset", 0, usize::MAX as u64)? as usize;
     if limit == 0 {
         return Err("'limit' must be at least 1.".into());
     }
@@ -147,6 +149,7 @@ fn inspect(args: &Value) -> Result<Value, String> {
     let mut total = 0u64;
     let mut unsafe_count = 0usize;
     let mut returned_name_bytes = 0usize;
+    let mut page_closed = false;
     for index in 0..zip.len() {
         let entry = zip
             .by_index_raw(index)
@@ -157,7 +160,11 @@ fn inspect(args: &Value) -> Result<Value, String> {
         if unsafe_path {
             unsafe_count += 1;
         }
-        if entries.len() < limit
+        if index < offset {
+            continue;
+        }
+        if !page_closed
+            && entries.len() < limit
             && returned_name_bytes.saturating_add(entry.name().len()) <= 512 * 1024
         {
             returned_name_bytes += entry.name().len();
@@ -166,11 +173,78 @@ fn inspect(args: &Value) -> Result<Value, String> {
                 "compressedBytes":entry.compressed_size(),"crc32":format!("{:08x}",entry.crc32()),
                 "encrypted":entry.encrypted(),"unsafePath":unsafe_path}),
             );
+        } else {
+            page_closed = true;
+        }
+    }
+    let next_offset = if page_closed {
+        Some(offset + entries.len())
+    } else {
+        None
+    };
+    Ok(
+        json!({"archive":path.to_string_lossy(),"entryCount":zip.len(),"totalUncompressedBytes":total,
+        "unsafeEntryCount":unsafe_count,"truncated":next_offset.is_some(),"entries":entries,"offset":offset,"nextOffset":next_offset}),
+    )
+}
+
+fn test(args: &Value) -> Result<Value, String> {
+    let path = Path::new(required_str(args, "archive")?);
+    let limit = optional_u64(args, "limit", 100, 1000)? as usize;
+    if limit == 0 {
+        return Err("'limit' must be positive.".into());
+    }
+    let mut zip =
+        ZipArchive::new(File::open(path).map_err(|e| io_error("Cannot open archive", e))?)
+            .map_err(|e| io_error("Invalid ZIP archive", e))?;
+    if zip.len() > MAX_COLLECTION_ENTRIES {
+        return Err(format!(
+            "Archive has more than {MAX_COLLECTION_ENTRIES} entries."
+        ));
+    }
+    let mut failures = Vec::new();
+    let mut failed = 0usize;
+    let mut bytes = 0u64;
+    let mut buffer = [0u8; 65536];
+    for index in 0..zip.len() {
+        let result = (|| -> Result<(), String> {
+            let mut entry = zip
+                .by_index(index)
+                .map_err(|e| io_error("Cannot open ZIP entry", e))?;
+            let mut entry_bytes = 0u64;
+            loop {
+                let remaining = (1024 * 1024 * 1024u64).saturating_sub(bytes);
+                let chunk = buffer.len().min(remaining.saturating_add(1) as usize);
+                let count = entry
+                    .read(&mut buffer[..chunk])
+                    .map_err(|e| io_error("ZIP integrity failure", e))?;
+                if count == 0 {
+                    break;
+                }
+                bytes += count as u64;
+                entry_bytes += count as u64;
+                if bytes > 1024 * 1024 * 1024 {
+                    return Err("Archive expands beyond 1 GiB.".into());
+                }
+            }
+            if entry_bytes != entry.size() {
+                return Err("Uncompressed size differs from ZIP metadata.".into());
+            }
+            Ok(())
+        })();
+        if bytes > 1024 * 1024 * 1024 {
+            return Err("Archive expands beyond 1 GiB; validation did not finish.".into());
+        }
+        if let Err(error) = result {
+            failed += 1;
+            if failures.len() < limit {
+                failures.push(json!({"index":index,"error":error}));
+            }
         }
     }
     Ok(
-        json!({"archive":path.to_string_lossy(),"entryCount":zip.len(),"totalUncompressedBytes":total,
-        "unsafeEntryCount":unsafe_count,"truncated":entries.len()<zip.len(),"entries":entries}),
+        json!({"archive":path.to_string_lossy(),"entryCount":zip.len(),"valid":failed==0,"failedEntries":failed,
+        "bytesRead":bytes,"failures":failures,"truncated":failed>limit}),
     )
 }
 

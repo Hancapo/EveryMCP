@@ -12,6 +12,120 @@ type ToolSpec = (
 pub fn append(tools: &mut Vec<Value>) {
     let specs: &[ToolSpec] = &[
         (
+            "directory_size",
+            "Summarize directory usage and largest files/folders with optional basename exclusions.",
+            &[("root", "string")],
+            &[("exclude", "string[]"), ("limit", "integerNumber")],
+            true,
+            true,
+        ),
+        (
+            "file_duplicates",
+            "Find identical files by size and SHA-256, returning duplicate groups and redundant bytes.",
+            &[("root", "string")],
+            &[("exclude", "string[]"), ("limit", "integerNumber")],
+            true,
+            true,
+        ),
+        (
+            "directory_sync",
+            "Preview new, changed and optionally extra files between two trees. dryRun defaults to true; delete defaults to false.",
+            &[("source", "string"), ("destination", "string")],
+            &[
+                ("dryRun", "boolean"),
+                ("delete", "boolean"),
+                ("limit", "integerNumber"),
+            ],
+            false,
+            false,
+        ),
+        (
+            "archive_test",
+            "Stream ZIP contents to verify decompression and CRC without extracting. Capped at 1 GiB of expanded bytes.",
+            &[("archive", "string")],
+            &[("limit", "integerNumber")],
+            true,
+            true,
+        ),
+        (
+            "json_patch",
+            "Apply RFC 6902 operations atomically to a JSON file, with optional SHA-256 precondition.",
+            &[("path", "string"), ("operations", "jsonPatch")],
+            &[("expectedSha256", "string")],
+            false,
+            false,
+        ),
+        (
+            "process_connections",
+            "List TCP/UDP IPv4/IPv6 endpoints owned by one Windows PID, with remote addresses and TCP state.",
+            &[("pid", "integerNumber")],
+            &[("limit", "integerNumber")],
+            true,
+            true,
+        ),
+        (
+            "process_memory_map",
+            "Inspect Windows virtual memory regions and associated mapped modules for one PID, with region-index pagination.",
+            &[("pid", "integerNumber")],
+            &[("offset", "integerNumber"), ("limit", "integerNumber")],
+            true,
+            true,
+        ),
+        (
+            "pe_dependencies",
+            "Recursively inspect PE imports in explicit search paths; report missing DLLs, architecture mismatch and API-set contracts. Does not load libraries.",
+            &[("path", "string"), ("searchPaths", "string[]")],
+            &[("recursive", "boolean"), ("limit", "integerNumber")],
+            true,
+            true,
+        ),
+        (
+            "binary_strings",
+            "Extract bounded ASCII/UTF-16 strings with byte offsets. encoding: ascii, utf16le, utf16be or all; filter is literal.",
+            &[("path", "string")],
+            &[
+                ("encoding", "string"),
+                ("minLength", "integerNumber"),
+                ("filter", "string"),
+                ("offset", "integerNumber"),
+                ("limit", "integerNumber"),
+            ],
+            true,
+            true,
+        ),
+        (
+            "binary_entropy",
+            "Compute Shannon entropy in bits per byte for file blocks, with byte-offset pagination.",
+            &[("path", "string")],
+            &[
+                ("blockSize", "integerNumber"),
+                ("offset", "integerNumber"),
+                ("limit", "integerNumber"),
+            ],
+            true,
+            true,
+        ),
+        (
+            "minidump_inspect",
+            "Read bounded minidump system, exception, registers, threads and module metadata; does not infer call stacks.",
+            &[("path", "string")],
+            &[("limit", "integerNumber")],
+            true,
+            true,
+        ),
+        (
+            "image_compare",
+            "Compare decoded RGBA pixels (first frame) with a 0-255 per-channel tolerance and optional PNG difference mask. Inputs must have equal dimensions.",
+            &[("leftPath", "string"), ("rightPath", "string")],
+            &[
+                ("threshold", "integerNumber"),
+                ("outputPath", "string"),
+                ("overwrite", "boolean"),
+            ],
+            false,
+            false,
+        ),
+        (
             "process_module_dump",
             "Dump only the loaded main EXE image of a Windows process to a rebuilt PE for analysis. Supply pid or an unambiguous process name; unreadable pages require allowPartial=true.",
             &[("outputPath", "string")],
@@ -659,6 +773,13 @@ pub fn append(tools: &mut Vec<Value>) {
     ];
     for &(name, description, required, optional, read_only, idempotent) in specs {
         crate::catalog::add_extra(tools, name, description, required, optional);
+        if matches!(name, "archive_inspect" | "directory_manifest" | "file_find") {
+            tools.last_mut().unwrap()["inputSchema"]["properties"]["offset"] = json!({"type":"integer","minimum":0,"description":"Entry index from nextOffset; keep the same source and options."});
+        }
+        if name == "process_memory_map" {
+            tools.last_mut().unwrap()["inputSchema"]["properties"]["offset"] =
+                json!({"type":"integer","minimum":0,"maximum":99999});
+        }
         let may_execute = matches!(name, "environment_snapshot");
         tools.last_mut().unwrap()["annotations"] = json!({
             "readOnlyHint": read_only && !may_execute,

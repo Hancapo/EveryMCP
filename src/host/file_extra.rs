@@ -266,7 +266,7 @@ fn pattern_search(args: &Value) -> Result<Value, String> {
                     matches.push(base + i as u64);
                     if matches.len() >= limit {
                         return Ok(
-                            json!({"path":path.to_string_lossy(),"offsets":matches,"limitReached":true}),
+                            json!({"path":path.to_string_lossy(),"offsets":matches,"limitReached":true,"nextOffset":base+i as u64+1}),
                         );
                     }
                 }
@@ -277,7 +277,9 @@ fn pattern_search(args: &Value) -> Result<Value, String> {
         carry.drain(..drain);
         position += n as u64;
     }
-    Ok(json!({"path":path.to_string_lossy(),"offsets":matches,"limitReached":false}))
+    Ok(
+        json!({"path":path.to_string_lossy(),"offsets":matches,"limitReached":false,"nextOffset":null}),
+    )
 }
 
 fn image_inspect(args: &Value) -> Result<Value, String> {
