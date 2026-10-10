@@ -1,4 +1,7 @@
-use super::{data, files, optional_bool, optional_str, optional_u64, required_str, workspace};
+use super::{
+    MAX_COLLECTION_ENTRIES, data, files, optional_bool, optional_str, optional_u64, required_str,
+    workspace,
+};
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
@@ -76,7 +79,12 @@ fn create(args: &Value) -> Result<Value, String> {
         .transpose()?;
     let include_entries = optional_bool(args, "includeEntries", false)?;
     let overwrite = optional_bool(args, "overwrite", false)?;
-    let limit = optional_u64(args, "limit", 10000, 10000)?;
+    let limit = optional_u64(
+        args,
+        "limit",
+        MAX_COLLECTION_ENTRIES as u64,
+        MAX_COLLECTION_ENTRIES as u64,
+    )?;
     if limit == 0 {
         return Err("'limit' must be at least 1.".into());
     }
@@ -99,7 +107,7 @@ fn create(args: &Value) -> Result<Value, String> {
 
 fn loaded(path: &Path) -> Result<Value, String> {
     if path.is_dir() {
-        return snapshot(path, None, 10000);
+        return snapshot(path, None, MAX_COLLECTION_ENTRIES as u64);
     }
     let (_, value) = data::load(path, Some("json"))?;
     if value["formatVersion"] != 1 || !value["entries"].is_array() {
