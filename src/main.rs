@@ -98,7 +98,12 @@ fn process(line: &str, tools: &[Value]) -> Option<Value> {
                 "This server returns the full tool list; cursors are not accepted.",
             )
         }
-        "tools/list" => result(id, json!({"tools":tools}), modern),
+        "tools/list" if modern => result(
+            id,
+            json!({"tools":tools,"ttlMs":300000,"cacheScope":"public"}),
+            true,
+        ),
+        "tools/list" => result(id, json!({"tools":tools}), false),
         "tools/call" => call(id, &request, tools, modern),
         _ => error(id, -32601, &format!("Method '{method}' not found.")),
     })

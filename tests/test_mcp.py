@@ -79,6 +79,27 @@ class McpTests(unittest.TestCase):
         self.assertEqual(failed["resultType"], "complete")
         self.assertTrue(failed["isError"])
 
+    def test_cacheable_modern_results_and_legacy_compatibility(self):
+        for method in ("server/discover", "tools/list"):
+            with self.subTest(method=method):
+                result = self.request(method, self.modern_params())["result"]
+                self.assertTrue("ttlMs" in result, f"{method} is missing ttlMs")
+                self.assertIs(type(result["ttlMs"]), int)
+                self.assertGreaterEqual(result["ttlMs"], 0)
+                self.assertIn(result.get("cacheScope"), ("public", "private"))
+        legacy = self.request("tools/list")["result"]
+        modern = self.request("tools/list", self.modern_params())["result"]
+        self.assertEqual(legacy["tools"], modern["tools"])
+        self.assertNotIn("ttlMs", legacy)
+        self.assertNotIn("cacheScope", legacy)
+        for method, params in (
+            ("ping", self.modern_params()),
+            ("tools/call", self.modern_params(name="add", arguments={"firstNumber": 2, "secondNumber": 3})),
+        ):
+            result = self.request(method, params)["result"]
+            self.assertNotIn("ttlMs", result)
+            self.assertNotIn("cacheScope", result)
+
     def test_modern_protocol_validation(self):
         missing = self.request("tools/list", {"_meta": {
             "io.modelcontextprotocol/protocolVersion": "2026-07-28"}})

@@ -2,6 +2,8 @@
 
 EveryMCP exposes 151 tools. This guide gives each tool's purpose and one practical use case. Call `tools/list` for the authoritative JSON schema, supported options, and current descriptions.
 
+For MCP `2026-07-28`, `tools/list` includes the required `ttlMs` and `cacheScope` fields, allowing the static catalog to be cached for five minutes. Legacy `2025-06-18` responses retain their original shape.
+
 A tool call uses the standard MCP envelope:
 
 ```json

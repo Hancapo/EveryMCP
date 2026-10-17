@@ -8,7 +8,7 @@ A native Rust MCP server with **151 tools** for mathematics, reverse engineering
 cargo build --release --locked
 ```
 
-Use `target/release/EveryMCP.exe` on Windows or `target/release/EveryMCP` on Linux and macOS. The server uses MCP over stdio and supports both legacy `2025-06-18` initialization and `2026-07-28` per-request metadata.
+Use `target/release/EveryMCP.exe` on Windows or `target/release/EveryMCP` on Linux and macOS. The server uses MCP over stdio and supports both legacy `2025-06-18` initialization and `2026-07-28` per-request metadata. Modern discovery and tool-list responses include the required cache hints (`ttlMs: 300000`, `cacheScope: "public"`).
 
 Example client configuration:
 
@@ -24,7 +24,7 @@ Example client configuration:
 
 ## Plugin package
 
-The local plugin bundles the Windows x64 executable; it requires a desktop host with local execution. After building the release, run `python scripts/package_plugin.py` (Python 3.11+) to create and verify `artifacts/everymcp-1.10.0-windows-x64.zip`. The package includes the tool guide and needs no Rust installation on the receiving machine. Use the plugin connection or a manual MCP configuration to avoid duplicate server instances.
+The local plugin bundles the Windows x64 executable; it requires a desktop host with local execution. After building the release, run `python scripts/package_plugin.py` (Python 3.11+) to create and verify `artifacts/everymcp-1.10.1-windows-x64.zip`. The package includes the tool guide and needs no Rust installation on the receiving machine. Use the plugin connection or a manual MCP configuration to avoid duplicate server instances.
 
 ## Tools
 
