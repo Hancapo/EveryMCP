@@ -319,9 +319,10 @@ dependencies = [
 
 [[package]]
 name = "everymcp"
-version = "1.11.0"
+version = "1.12.0"
 dependencies = [
  "csv",
+ "flate2",
  "goblin",
  "half",
  "hickory-resolver",
@@ -329,6 +330,7 @@ dependencies = [
  "imagesize",
  "json-patch",
  "kamadak-exif",
+ "lz4_flex",
  "nalgebra",
  "native-tls",
  "num-bigint 0.5.1",
@@ -346,6 +348,7 @@ dependencies = [
  "ureq",
  "walkdir",
  "windows",
+ "xxhash-rust",
  "zip",
 ]
 
@@ -966,6 +969,15 @@ name = "log"
 version = "0.4.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6"
+
+[[package]]
+name = "lz4_flex"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ecbdfe44b1bd960b68170b417450a628c43f7cf56bb3c5317e61cb230ee7f226"
+dependencies = [
+ "twox-hash",
+]
 
 [[package]]
 name = "matrixmultiply"
@@ -2018,6 +2030,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "twox-hash"
+version = "2.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "86a801b3cea342a06d468c8710662aa29e5e05e4f5c0d62f00bbb7f2ad7941c2"
+
+[[package]]
 name = "typed-path"
 version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2460,6 +2478,12 @@ name = "writeable"
 version = "0.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3ad82d2a33cdc9674dc7465672f271e096168fcdbe0f799d9e6db8c5892679dc"
+
+[[package]]
+name = "xxhash-rust"
+version = "0.8.19"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "550a2b930b62486a393c52d5c3b84bff264b28aa437ed64694d31e93b1757af7"
 
 [[package]]
 name = "yoke"

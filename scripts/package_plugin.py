@@ -60,7 +60,7 @@ def package():
         if responses[0]["result"]["serverInfo"]["version"] != manifest["version"]:
             raise ValueError("Release executable is stale; rebuild it before packaging.")
         tools = responses[1]["result"]["tools"]
-        if len(tools) != 151 or len({tool["name"] for tool in tools}) != len(tools):
+        if len(tools) != 154 or len({tool["name"] for tool in tools}) != len(tools):
             raise ValueError("Plugin tool catalog does not match this release.")
         if json.loads(responses[2]["result"]["content"][0]["text"])["value"] != 5:
             raise ValueError("Packaged server failed its arithmetic check.")

@@ -1,6 +1,6 @@
 # EveryMCP
 
-A native Rust MCP server with **151 tools** for mathematics, reverse engineering, geometry, and local system automation. It includes the 22 operations from [math-mcp](https://github.com/EthanHenrickson/math-mcp) with their original names and arguments; no code or dependencies are copied from that project.
+A native Rust MCP server with **154 tools** for mathematics, reverse engineering, geometry, and local system automation. It includes the 22 operations from [math-mcp](https://github.com/EthanHenrickson/math-mcp) with their original names and arguments; no code or dependencies are copied from that project.
 
 ## Build
 
@@ -24,7 +24,7 @@ Example client configuration:
 
 ## Plugin package
 
-The local plugin bundles the Windows x64 executable; it requires a desktop host with local execution. After building the release, run `python scripts/package_plugin.py` (Python 3.11+) to create and verify `artifacts/everymcp-1.11.0-windows-x64.zip`. The package includes the tool guide and needs no Rust installation on the receiving machine. Use the plugin connection or a manual MCP configuration to avoid duplicate server instances.
+The local plugin bundles the Windows x64 executable; it requires a desktop host with local execution. After building the release, run `python scripts/package_plugin.py` (Python 3.11+) to create and verify `artifacts/everymcp-1.12.0-windows-x64.zip`. The package includes the tool guide and needs no Rust installation on the receiving machine. Use the plugin connection or a manual MCP configuration to avoid duplicate server instances.
 
 ## Tools
 

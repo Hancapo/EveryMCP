@@ -2,6 +2,7 @@ mod bytes;
 mod catalog;
 mod exact;
 mod geometry_math;
+mod hashing;
 mod host;
 mod host_catalog;
 mod input;
