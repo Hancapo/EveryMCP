@@ -206,7 +206,7 @@ fn trash_file(args: &Value) -> Result<Value, String> {
     Ok(json!({"path":path.to_string_lossy(),"trashed":!permanent,"permanentlyDeleted":permanent}))
 }
 
-fn parse_pattern(raw: &str) -> Result<Vec<Option<u8>>, String> {
+pub(super) fn parse_pattern(raw: &str) -> Result<Vec<Option<u8>>, String> {
     let compact = raw.split_whitespace().collect::<String>();
     if compact.is_empty() || compact.len() % 2 != 0 || compact.len() > 512 {
         return Err("Pattern must contain 1-256 hex bytes or ?? wildcards.".into());

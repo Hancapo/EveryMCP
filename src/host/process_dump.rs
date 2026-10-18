@@ -315,7 +315,7 @@ pub(super) mod windows_impl {
         actual == requested || actual.strip_suffix(".exe") == Some(requested.as_str())
     }
 
-    fn resolve_pid(args: &Value) -> Result<u32, String> {
+    pub(crate) fn resolve_pid(args: &Value) -> Result<u32, String> {
         let pid = optional_u64(args, "pid", 0, u32::MAX as u64)? as u32;
         let name = optional_str(args, "name")?;
         if pid == 0 && name.is_none() {
@@ -368,13 +368,8 @@ pub(super) mod windows_impl {
         Ok(String::from_utf16_lossy(&buffer[..length as usize]))
     }
 
-    fn main_module(handle: HANDLE, image_path: &str) -> Result<MODULEINFO, String> {
-        let normalize = |s: &str| {
-            s.trim_start_matches("\\\\?\\")
-                .replace('/', "\\")
-                .to_lowercase()
-        };
-        let expected = normalize(image_path);
+    /// Lists loaded modules as (path, handle) pairs.
+    pub(crate) fn enumerate_modules(handle: HANDLE) -> Result<Vec<(String, HMODULE)>, String> {
         let mut modules = vec![HMODULE(std::ptr::null_mut()); 256];
         let count = loop {
             let mut needed = 0u32;
@@ -404,6 +399,7 @@ pub(super) mod windows_impl {
             }
             modules.resize(required, HMODULE(std::ptr::null_mut()));
         };
+        let mut result = Vec::with_capacity(count);
         for module in modules.into_iter().take(count) {
             let mut name = vec![0u16; 32768];
             let len =
@@ -411,28 +407,43 @@ pub(super) mod windows_impl {
             if len == 0 || len >= name.len() {
                 continue;
             }
-            if normalize(&String::from_utf16_lossy(&name[..len])) != expected {
-                continue;
-            }
-            let mut info = MODULEINFO::default();
-            if !unsafe {
-                K32GetModuleInformation(
-                    handle,
-                    module,
-                    &mut info,
-                    std::mem::size_of::<MODULEINFO>() as u32,
-                )
-            }
-            .as_bool()
-            {
-                return Err(format!(
-                    "Cannot inspect main module: {}",
-                    windows::core::Error::from_thread()
-                ));
-            }
-            return Ok(info);
+            result.push((String::from_utf16_lossy(&name[..len]), module));
         }
-        Err("The executable path did not match any enumerated module.".into())
+        Ok(result)
+    }
+
+    pub(crate) fn module_info(handle: HANDLE, module: HMODULE) -> Result<MODULEINFO, String> {
+        let mut info = MODULEINFO::default();
+        if !unsafe {
+            K32GetModuleInformation(
+                handle,
+                module,
+                &mut info,
+                std::mem::size_of::<MODULEINFO>() as u32,
+            )
+        }
+        .as_bool()
+        {
+            return Err(format!(
+                "Cannot inspect module: {}",
+                windows::core::Error::from_thread()
+            ));
+        }
+        Ok(info)
+    }
+
+    fn main_module(handle: HANDLE, image_path: &str) -> Result<MODULEINFO, String> {
+        let normalize = |s: &str| {
+            s.trim_start_matches("\\\\?\\")
+                .replace('/', "\\")
+                .to_lowercase()
+        };
+        let expected = normalize(image_path);
+        let (_, module) = enumerate_modules(handle)?
+            .into_iter()
+            .find(|(path, _)| normalize(path) == expected)
+            .ok_or("The executable path did not match any enumerated module.")?;
+        module_info(handle, module)
     }
 
     struct ImageReader {
