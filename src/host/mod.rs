@@ -1,6 +1,7 @@
 mod archive;
 mod binary_inspect;
 mod binary_tools;
+mod codec;
 mod data;
 mod dependencies;
 mod directory_tools;
@@ -67,6 +68,7 @@ pub fn execute(name: &str, args: &Value) -> Result<Value, String> {
         | "image_inspect"
         | "text_transcode" => file_extra::execute(name, args),
         "pe_inspect" => binary_inspect::pe_inspect(args),
+        "data_transform" | "hash_dictionary_match" => codec::execute(name, args),
         "process_module_dump" => process_dump::dump(args),
         "file_lock_holders" => locks::holders(args),
         "workspace_scan"

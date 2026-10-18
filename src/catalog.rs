@@ -299,6 +299,19 @@ pub fn list() -> Vec<Value> {
         ],
         &[],
     );
+    add_extra(
+        &mut tools,
+        "hash_compute",
+        "Non-cryptographic hashes used by file formats and engines: joaat, fnv1_32, fnv1a_32, fnv1_64, fnv1a_64, murmur3_32, xxh32, xxh64, xxh3_64, djb2, djb2a, sdbm. Hash one 'data' string or up to 1000 'inputs'. encoding is utf8 (default), utf16le or hex; caseFold none/lower/upper folds ASCII letters of text input. seed is an integer string (FNV takes none; djb2 defaults to 5381). Returns hex, unsigned and signed values.",
+        &[("algorithm", "string")],
+        &[
+            ("data", "string"),
+            ("inputs", "string[]"),
+            ("encoding", "string"),
+            ("caseFold", "string"),
+            ("seed", "integer"),
+        ],
+    );
 
     add_extra(
         &mut tools,
@@ -662,6 +675,21 @@ fn schema(kind: &str) -> Value {
             json!({"type":"object","properties":{"rows":{"type":"integer","minimum":1,"maximum":32},
             "cols":{"type":"integer","minimum":1,"maximum":32},"data":{"type":"array","items":{"type":"number"},"maxItems":1024}},
             "required":["rows","cols","data"],"additionalProperties":false})
+        }
+        "transformSteps" => {
+            json!({"type":"array","minItems":1,"maxItems":32,"items":{"type":"object","properties":{
+            "op":{"type":"string","enum":["xor","add","sub","rol","ror","not","reverse","slice",
+                "hex_encode","hex_decode","base64_encode","base64_decode","base32_encode","base32_decode",
+                "zlib_compress","zlib_decompress","deflate_compress","deflate_decompress",
+                "gzip_compress","gzip_decompress","lz4_block_compress","lz4_block_decompress",
+                "lz4_frame_compress","lz4_frame_decompress"]},
+            "key":{"type":"string","description":"xor: hex key bytes, repeated over the data."},
+            "value":{"type":"integer","minimum":0,"maximum":255,"description":"add/sub: byte amount (wrapping)."},
+            "bits":{"type":"integer","minimum":0,"maximum":7,"description":"rol/ror: per-byte rotation."},
+            "offset":{"type":"integer","minimum":0,"description":"slice: start byte."},
+            "length":{"type":"integer","minimum":0,"description":"slice: byte count (default: to the end)."},
+            "size":{"type":"integer","minimum":0,"description":"lz4_block_decompress: exact decompressed size."}},
+            "required":["op"],"additionalProperties":false}})
         }
         "integer" => {
             json!({"type":"string","description":"Decimal, 0x hexadecimal or 0b binary integer; optional leading minus sign."})

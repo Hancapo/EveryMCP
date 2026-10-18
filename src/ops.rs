@@ -2,6 +2,7 @@ use serde_json::{Map, Value, json};
 
 mod geometry;
 mod geometry_extra;
+mod hash;
 mod linear_extra;
 mod numeric_extra;
 mod re;
@@ -86,7 +87,9 @@ pub fn execute(name: &str, args: &Value) -> Result<Value, String> {
         | "binary_pattern_search"
         | "pe_inspect"
         | "image_inspect"
-        | "text_transcode" => crate::host::execute(name, args),
+        | "text_transcode"
+        | "data_transform"
+        | "hash_dictionary_match" => crate::host::execute(name, args),
         "artifact_manifest" | "manifest_diff" | "diagnostics_parse" | "test_results_parse" => {
             crate::host::execute(name, args)
         }
@@ -114,6 +117,7 @@ pub fn execute(name: &str, args: &Value) -> Result<Value, String> {
         | "pe_relocation_apply"
         | "packed_vertex_decode"
         | "crc_compute" => re_extra::execute(name, args),
+        "hash_compute" => hash::execute(name, args),
         "compose_transform"
         | "decompose_transform"
         | "rotation_convert"
@@ -144,6 +148,8 @@ pub fn execute(name: &str, args: &Value) -> Result<Value, String> {
         _ => Err(format!("Unknown tool '{name}'.")),
     }
 }
+
+pub(crate) use hash::seed as hash_seed;
 
 pub(super) fn value(number: f64) -> Result<Value, String> {
     if !number.is_finite() {

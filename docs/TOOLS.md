@@ -1,6 +1,6 @@
 # EveryMCP tool guide
 
-EveryMCP exposes 151 tools. This guide gives each tool's purpose and one practical use case. Call `tools/list` for the authoritative JSON schema, supported options, and current descriptions.
+EveryMCP exposes 154 tools. This guide gives each tool's purpose and one practical use case. Call `tools/list` for the authoritative JSON schema, supported options, and current descriptions.
 
 For MCP `2026-07-28`, `tools/list` includes the required `ttlMs` and `cacheScope` fields, allowing the static catalog to be cached for five minutes. Legacy `2025-06-18` responses retain their original shape.
 
@@ -82,6 +82,16 @@ Byte limits still apply: ZIP extraction is capped at 1 GiB, ZIP inspection retur
 | `pe_relocation_apply` | Apply a PE HIGHLOW or DIR64 base relocation. | Predict a pointer after a module is rebased. |
 | `packed_vertex_decode` | Decode supported packed vertex component formats. | Check position or color values stored in a compact GPU buffer. |
 | `crc_compute` | Compute a CRC with explicit polynomial and reflection settings. | Match a checksum used by a custom binary format. |
+| `hash_compute` | Compute JOAAT, FNV-1/1a, MurmurHash3, xxHash, djb2 or sdbm hashes with optional seed and ASCII case folding. | Get the JOAAT hash an engine uses for an asset name. |
+
+## Hashing and data decoding
+
+| Tool | What to use it for | Example use case |
+| --- | --- | --- |
+| `hash_dictionary_match` | Reverse known hashes by hashing words from a list or wordlist file, combined with optional prefixes and suffixes. | Recover asset names behind JOAAT hashes found in a game file. |
+| `data_transform` | Run XOR, add/sub, rotate, base64/base32/hex, zlib/deflate/gzip and LZ4 steps over inline bytes or a file range. | Decode an XOR-obfuscated, zlib-compressed config blob. |
+
+`hash_compute` and `hash_dictionary_match` share algorithm names. Case folding affects ASCII letters only. `hash_dictionary_match` tries every `prefix + word + suffix` combination, keeps up to 16 colliding candidates per hash and stops after `maxCandidates`. `data_transform` reads at most 16 MiB of input, caps every step at 64 MiB (which also bounds decompression bombs), and writes `outputPath` only with `overwrite: true` when the file exists.
 
 ## Geometry, rotations, and spatial tests
 
