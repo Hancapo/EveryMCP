@@ -49,7 +49,7 @@ fn architecture(path: &Path) -> Option<&'static str> {
     None
 }
 
-fn candidates(name: &str) -> Vec<PathBuf> {
+pub(super) fn candidates(name: &str) -> Vec<PathBuf> {
     let path = Path::new(name);
     let has_directory = path.is_absolute() || name.contains('/') || name.contains('\\');
     let dirs = if has_directory {
