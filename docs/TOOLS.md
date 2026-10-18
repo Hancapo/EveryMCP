@@ -1,6 +1,6 @@
 # EveryMCP tool guide
 
-EveryMCP exposes 154 tools. This guide gives each tool's purpose and one practical use case. Call `tools/list` for the authoritative JSON schema, supported options, and current descriptions.
+EveryMCP exposes 157 tools. This guide gives each tool's purpose and one practical use case. Call `tools/list` for the authoritative JSON schema, supported options, and current descriptions.
 
 For MCP `2026-07-28`, `tools/list` includes the required `ttlMs` and `cacheScope` fields, allowing the static catalog to be cached for five minutes. Legacy `2025-06-18` responses retain their original shape.
 
@@ -263,3 +263,16 @@ The Windows administration tools in this section require Windows. `system_info` 
 Call `process_module_dump` with `outputPath` and either `pid` or an unambiguous `name`. It identifies the main EXE module, reads only readable `MEM_IMAGE` pages in that module's `ImageBase..ImageBase+SizeOfImage`, then writes its headers and sections with file-aligned offsets. Unreadable pages stop the operation by default; `allowPartial: true` zero-fills them and reports `unreadableBytes`. The output is an analysis snapshot, not a runnable rebuild: imports, the original entry point, and discarded file-only data may still need manual work.
 
 Windows requires `PROCESS_QUERY_INFORMATION` and `PROCESS_VM_READ`. A sufficiently privileged account or `SeDebugPrivilege` may be needed for some processes; protected processes may still refuse access. The tool does not enable privileges, alter the process, or read its heap, private allocations, or other modules.
+
+## Live process memory
+
+| Tool | What to use it for | Example use case |
+| --- | --- | --- |
+| `process_memory_read` | Read up to 1 MiB of any committed memory (heap, other modules, private allocations) as hex and optional typed values. | Inspect a structure at `game.exe+0x1A2B30`. |
+| `pointer_chain_resolve` | Follow `[[base]+off1]+off2…` through a live process and report every hop. | Resolve a Cheat Engine pointer path after the game restarts. |
+| `process_pattern_scan` | Find `??`-wildcard byte signatures in one module, an address range, or all readable memory. | Relocate a function by its signature after an update changes offsets. |
+
+Addresses accept an integer string, a loaded module name, or `module+offset` / `module-offset` (for example `game.exe+0x1234`); results include the module-relative form when an address falls inside a module. `pointer_chain_resolve` follows Cheat Engine semantics: it reads `[base]`, then `[previous + offset]` for every offset except the last, which is added without a read. It stops at the first null or unreadable pointer and defaults to the target's pointer size (4 for WOW64). `process_pattern_scan` scans committed, non-guard pages, matches across adjacent readable regions, and resumes from `nextAddress`. It stops at `limit` matches or `maxScanBytes` (default 2 GiB; a full scan of a typical desktop process takes seconds).
+
+These tools need `PROCESS_QUERY_INFORMATION` and `PROCESS_VM_READ` and are strictly read-only: they never write to, suspend, or inject into the target. Memory changes while it is read, so results are a point-in-time view.
+

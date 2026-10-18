@@ -18,6 +18,7 @@ mod network;
 mod performance;
 mod process;
 mod process_dump;
+mod process_memory;
 mod reports;
 mod shell;
 mod wait;
@@ -70,6 +71,9 @@ pub fn execute(name: &str, args: &Value) -> Result<Value, String> {
         "pe_inspect" => binary_inspect::pe_inspect(args),
         "data_transform" | "hash_dictionary_match" => codec::execute(name, args),
         "process_module_dump" => process_dump::dump(args),
+        "process_memory_read" | "pointer_chain_resolve" | "process_pattern_scan" => {
+            process_memory::execute(name, args)
+        }
         "file_lock_holders" => locks::holders(args),
         "workspace_scan"
         | "repo_status_batch"
