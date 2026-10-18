@@ -618,11 +618,12 @@ pub fn append(tools: &mut Vec<Value>) {
         ),
         (
             "powershell_run",
-            "Run a supplied PowerShell script with timeout and bounded captured output (Windows only).",
+            "Run a supplied PowerShell script with timeout and bounded captured output (Windows only). 'shell' selects windows (Windows PowerShell 5.1, default), pwsh (PowerShell 7) or auto (pwsh when installed).",
             &[("script", "string")],
             &[
                 ("timeoutMs", "integerNumber"),
                 ("maxOutputBytes", "integerNumber"),
+                ("shell", "string"),
             ],
             false,
             false,

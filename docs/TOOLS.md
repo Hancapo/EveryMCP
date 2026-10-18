@@ -200,7 +200,7 @@ The Windows administration tools in this section require Windows. `system_info` 
 | `registry_read` | Read one property from a literal Windows Registry path. | Check an installed application's configured location. |
 | `environment_get` | Read one process, user, or machine environment variable. | Check which SDK path a build will inherit. |
 | `system_info` | Read OS, CPU, and memory information. | Record the host configuration for a benchmark report. |
-| `powershell_run` | Run a bounded PowerShell script on Windows. | Invoke an existing maintenance script when no dedicated tool covers it. |
+| `powershell_run` | Run a bounded PowerShell script on Windows; `shell` selects `windows` (5.1, default), `pwsh` (PowerShell 7) or `auto`. | Invoke an existing maintenance script when no dedicated tool covers it. |
 | `file_signature` | Inspect a Windows file's Authenticode status, signer, and version. | Verify the signer of an installed executable. |
 | `file_open` | Open a file or folder with its Windows association, or use `mode: "reveal"` to select it in Explorer. Opening an executable or script may run it. | Reveal a ZIP in Explorer, or open an image in its default viewer. |
 | `scheduled_task` | List, inspect, run, stop, enable, disable, register, or unregister Windows tasks. | Check whether a scheduled backup is enabled. |

@@ -407,6 +407,18 @@ class McpTests(unittest.TestCase):
         self.assertGreater(info["totalMemoryBytes"], 0)
         result = self.call("powershell_run", {"script": "Write-Output 42", "timeoutMs": 5000})
         self.assertEqual(result["stdout"].strip(), "42")
+        self.assertEqual(result["shell"], "windows")
+        auto = self.call("powershell_run", {"script": "$PSVersionTable.PSEdition", "shell": "auto",
+                                            "timeoutMs": 10000})
+        self.assertEqual(auto["stdout"].strip(), "Core" if auto["shell"] == "pwsh" else "Desktop")
+        if shutil.which("pwsh"):
+            pwsh = self.call("powershell_run", {"script": "$PSVersionTable.PSVersion.Major", "shell": "pwsh",
+                                                "timeoutMs": 10000})
+            self.assertEqual(pwsh["shell"], "pwsh")
+            self.assertGreaterEqual(int(pwsh["stdout"].strip()), 7)
+        bad_shell = self.request("tools/call", {"name": "powershell_run",
+                                                "arguments": {"script": "1", "shell": "bash"}})
+        self.assertTrue(bad_shell["result"]["isError"])
         self.assertEqual(self.call("environment_get", {"name": "PATH", "scope": "process"})["name"], "PATH")
         self.assertEqual(self.call("environment_get", {"name": "PATH", "scope": "user"})["scope"], "user")
         self.assertEqual(self.call("service_get", {"name": "EventLog"})["name"], "EventLog")

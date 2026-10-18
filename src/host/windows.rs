@@ -1,6 +1,6 @@
 use super::{optional_str, optional_u64, required_str, required_u64};
 use serde_json::{Value, json};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 const SECURITY_MODULE: &str = "Import-Module ($PSHOME + '/Modules/Microsoft.PowerShell.Security/Microsoft.PowerShell.Security.psd1') -ErrorAction Stop;";
@@ -32,6 +32,7 @@ fn base64(data: &[u8]) -> String {
 }
 
 fn powershell(
+    executable: &Path,
     script: &str,
     data: Option<&Value>,
     timeout: u64,
@@ -44,7 +45,7 @@ fn powershell(
         .encode_utf16()
         .flat_map(u16::to_le_bytes)
         .collect::<Vec<_>>();
-    let mut command = Command::new("powershell.exe");
+    let mut command = Command::new(executable);
     command.args([
         "-NoLogo",
         "-NoProfile",
@@ -66,7 +67,13 @@ pub(super) fn powershell_json(body: &str, args: &Value, timeout: u64) -> Result<
     let script = format!(
         "$ErrorActionPreference = 'Stop'; $a = $env:EVERYMCP_ARGS | ConvertFrom-Json; $result = & {{ {body} }}; ConvertTo-Json -InputObject $result -Depth 12 -Compress"
     );
-    let output = powershell(&script, Some(args), timeout, 1024 * 1024)?;
+    let output = powershell(
+        Path::new("powershell.exe"),
+        &script,
+        Some(args),
+        timeout,
+        1024 * 1024,
+    )?;
     if output["timedOut"] == true {
         return Err("PowerShell operation timed out.".into());
     }
@@ -297,7 +304,29 @@ fn powershell_run(args: &Value) -> Result<Value, String> {
     let script = required_str(args, "script")?;
     let timeout = optional_u64(args, "timeoutMs", 30000, 300000)?;
     let limit = optional_u64(args, "maxOutputBytes", 1024 * 1024, 4 * 1024 * 1024)? as usize;
-    powershell(script, None, timeout, limit)
+    let requested = optional_str(args, "shell")?
+        .unwrap_or("windows")
+        .to_lowercase();
+    let pwsh = || {
+        super::inspect::candidates("pwsh")
+            .into_iter()
+            .find(|path| path.is_file())
+    };
+    let (shell, executable) = match requested.as_str() {
+        "windows" => ("windows", PathBuf::from("powershell.exe")),
+        "pwsh" => (
+            "pwsh",
+            pwsh().ok_or("PowerShell 7 (pwsh) was not found on PATH.")?,
+        ),
+        "auto" => match pwsh() {
+            Some(path) => ("pwsh", path),
+            None => ("windows", PathBuf::from("powershell.exe")),
+        },
+        _ => return Err("'shell' must be windows, pwsh or auto.".into()),
+    };
+    let mut output = powershell(&executable, script, None, timeout, limit)?;
+    output["shell"] = json!(shell);
+    Ok(output)
 }
 
 pub fn execute(name: &str, args: &Value) -> Result<Value, String> {
