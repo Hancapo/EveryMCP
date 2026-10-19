@@ -575,6 +575,61 @@ pub fn list() -> Vec<Value> {
     );
     add_extra(
         &mut tools,
+        "bounding_volume",
+        "Bounding volumes of up to 100,000 3D points: AABB (min, max, center, halfExtents, volume, surface area), the exact minimum enclosing sphere, and a PCA-fitted OBB (center, right-handed axes, halfExtents, XYZW rotation quaternion, volume). kind is all (default), aabb, sphere or obb.",
+        &[("points", "number[][]")],
+        &[("kind", "string")],
+    );
+    add_extra(
+        &mut tools,
+        "mesh_inspect",
+        "Inspect a triangle mesh from 3D vertices and a flat triangle index list (omit indices for a triangle soup): surface area, enclosed volume and centroid, bounds, degenerate and duplicate triangles, duplicate and unreferenced vertices, boundary and non-manifold edges, winding consistency, watertightness, outward orientation, connected components, Euler characteristic and genus. Topology welds equal positions (weldTolerance for near-equal) so UV seams do not count as holes. includeNormals adds face and area-weighted vertex normals (up to 20,000 vertices).",
+        &[("vertices", "number[][]")],
+        &[
+            ("indices", "number[]"),
+            ("weldTolerance", "number"),
+            ("includeNormals", "boolean"),
+        ],
+    );
+    add_extra(
+        &mut tools,
+        "convex_hull",
+        "Convex hull of 2D points (up to 100,000; returns CCW vertex indices, area, perimeter, or a point/segment for degenerate input) or 3D points (up to 10,000; returns vertex indices, outward CCW triangle faces, surface area and volume).",
+        &[("points", "number[][]")],
+        &[],
+    );
+    add_extra(
+        &mut tools,
+        "polygon_triangulate",
+        "Triangulate a simple 2D polygon, optionally with holes, by ear clipping (up to 5,000 vertices in total). Returns CCW triangles as indices into the outer points followed by each hole's points in order, plus polygon and triangulated area for checking.",
+        &[("points", "number[][]")],
+        &[("holes", "number[][][]")],
+    );
+    add_extra(
+        &mut tools,
+        "expression_evaluate",
+        "Evaluate one math expression with named variables: + - * / % ^ (or **), comparisons, ?: and !, constants pi, tau, e, and functions sin cos tan asin acos atan atan2 sinh cosh tanh sqrt cbrt abs exp ln log(x[,base]) log10 log2 floor ceil round trunc sign fract pow hypot min max sum mean clamp lerp mod deg rad. Unary minus binds looser than ^ (-2^2 = -4). angleUnit radians (default) or degrees. sweepVariable with sweepValues evaluates over many inputs.",
+        &[("expression", "string")],
+        &[
+            ("variables", "numberMap"),
+            ("angleUnit", "string"),
+            ("sweepVariable", "string"),
+            ("sweepValues", "number[]"),
+        ],
+    );
+    add_extra(
+        &mut tools,
+        "curve_fit",
+        "Least-squares fit of y against x (2 to 100,000 samples, optional weights): linear, polynomial (degree 1-10), logarithmic (a + b·ln x), exponential (a·e^(b·x)) or power (a·x^b). Exponential and power fits minimize error in y with Levenberg-Marquardt from a log-space start. Returns coefficients, equation, R², RMSE, max residual and optional predictions at 'predict' x values.",
+        &[("x", "number[]"), ("y", "number[]"), ("model", "string")],
+        &[
+            ("degree", "integerNumber"),
+            ("weights", "number[]"),
+            ("predict", "number[]"),
+        ],
+    );
+    add_extra(
+        &mut tools,
         "vector_n",
         "Vector operations for 2..32 components: add, subtract, scale, hadamard, divide, min, max, clamp, lerp, project, reject, reflect. Projection/reflect use b as direction/normal.",
         &[("operation", "string"), ("a", "number[]")],
@@ -715,6 +770,10 @@ fn schema(kind: &str) -> Value {
             "required":["executable"],"additionalProperties":false}})
         }
         "number[][]" => json!({"type":"array","items":{"type":"array","items":{"type":"number"}}}),
+        "number[][][]" => {
+            json!({"type":"array","items":{"type":"array","items":{"type":"array","items":{"type":"number"}}}})
+        }
+        "numberMap" => json!({"type":"object","additionalProperties":{"type":"number"}}),
         "object[]" => json!({"type":"array","maxItems":128,"items":{"type":"object",
             "properties":{"name":{"type":"string"},"virtualAddress":{"type":"string"},
                 "virtualSize":{"type":"string"},"pointerToRawData":{"type":"string"},

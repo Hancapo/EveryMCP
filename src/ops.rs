@@ -1,5 +1,6 @@
 use serde_json::{Map, Value, json};
 
+mod analysis;
 mod geometry;
 mod geometry_extra;
 mod hash;
@@ -8,6 +9,7 @@ mod numeric_extra;
 mod re;
 mod re_extra;
 mod scalar;
+mod shapes;
 mod struct_layout;
 mod vector_extra;
 mod x86;
@@ -135,6 +137,10 @@ pub fn execute(name: &str, args: &Value) -> Result<Value, String> {
         "hash_compute" => hash::execute(name, args),
         "x86_disasm" | "x86_assemble" | "signature_generate" => x86::execute(name, args),
         "struct_layout" => struct_layout::execute(args),
+        "bounding_volume" | "mesh_inspect" | "convex_hull" | "polygon_triangulate" => {
+            shapes::execute(name, args)
+        }
+        "expression_evaluate" | "curve_fit" => analysis::execute(name, args),
         "compose_transform"
         | "decompose_transform"
         | "rotation_convert"
