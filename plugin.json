@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "everymcp",
-  "version": "1.14.0",
-  "description": "169 native tools for mathematics, geometry, binary analysis, files, and Windows host automation.",
+  "version": "1.15.0",
+  "description": "171 native tools for mathematics, geometry, binary analysis, files, and Windows host automation.",
   "author": {
     "name": "Hancapo",
     "url": "https://github.com/Hancapo"
@@ -16,7 +16,7 @@
       "interface": {
         "displayName": "EveryMCP",
         "shortDescription": "Math, files and Windows tools",
-        "longDescription": "Run 169 native tools for exact arithmetic, vectors, matrices, geometry, PE analysis, binary inspection, archives, structured data, images, and Windows processes. Includes the Windows x64 executable and requires a desktop session with local execution. Tools run with your account's permissions; file changes, process control, commands, and network requests occur only when those tools are called.",
+        "longDescription": "Run 171 native tools for exact arithmetic, vectors, matrices, geometry, PE analysis, binary inspection, archives, structured data, images, and Windows processes. Includes the Windows x64 executable and requires a desktop session with local execution. Tools run with your account's permissions; file changes, process control, commands, and network requests occur only when those tools are called.",
         "developerName": "Hancapo",
         "category": "Productivity",
         "capabilities": ["Read", "Write"],

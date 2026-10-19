@@ -94,6 +94,20 @@ pub fn append(tools: &mut Vec<Value>) {
             true,
         ),
         (
+            "binary_carve",
+            "Scan a file for embedded PE, ELF, ZIP, PNG, DDS, gzip and zlib data and report validated offsets, sizes and format details. Headers are checked, ZIPs are found from their end record, PNGs walked to IEND, and gzip/zlib must decompress with a valid checksum. types filters formats; skipContained (default true) hides hits inside a found PNG, DDS or compressed stream. Resume with offset=nextOffset; bounded by limit (default 100) and maxScanBytes.",
+            &[("path", "string")],
+            &[
+                ("types", "string[]"),
+                ("offset", "integerNumber"),
+                ("limit", "integerNumber"),
+                ("maxScanBytes", "integerNumber"),
+                ("skipContained", "boolean"),
+            ],
+            true,
+            true,
+        ),
+        (
             "binary_entropy",
             "Compute Shannon entropy in bits per byte for file blocks, with byte-offset pagination.",
             &[("path", "string")],

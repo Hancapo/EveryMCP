@@ -1,6 +1,7 @@
 mod archive;
 mod binary_inspect;
 mod binary_tools;
+mod carve;
 mod codec;
 mod data;
 mod dependencies;
@@ -72,6 +73,7 @@ pub fn execute(name: &str, args: &Value) -> Result<Value, String> {
         | "image_inspect"
         | "text_transcode" => file_extra::execute(name, args),
         "pe_inspect" => binary_inspect::pe_inspect(args),
+        "binary_carve" => carve::carve(args),
         "pe_debug_info" | "pe_resources" | "pe_runtime_functions" => pe_extra::execute(name, args),
         "elf_inspect" | "macho_inspect" => object_inspect::execute(name, args),
         "data_transform" | "hash_dictionary_match" => codec::execute(name, args),
