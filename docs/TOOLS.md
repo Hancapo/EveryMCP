@@ -1,6 +1,6 @@
 # EveryMCP tool guide
 
-EveryMCP exposes 157 tools. This guide gives each tool's purpose and one practical use case. Call `tools/list` for the authoritative JSON schema, supported options, and current descriptions.
+EveryMCP exposes 169 tools. This guide gives each tool's purpose and one practical use case. Call `tools/list` for the authoritative JSON schema, supported options, and current descriptions.
 
 For MCP `2026-07-28`, `tools/list` includes the required `ttlMs` and `cacheScope` fields, allowing the static catalog to be cached for five minutes. Legacy `2025-06-18` responses retain their original shape.
 
@@ -82,6 +82,9 @@ Byte limits still apply: ZIP extraction is capped at 1 GiB, ZIP inspection retur
 | `pe_relocation_apply` | Apply a PE HIGHLOW or DIR64 base relocation. | Predict a pointer after a module is rebased. |
 | `packed_vertex_decode` | Decode supported packed vertex component formats. | Check position or color values stored in a compact GPU buffer. |
 | `crc_compute` | Compute a CRC with explicit polynomial and reflection settings. | Match a checksum used by a custom binary format. |
+| `x86_disasm` | Disassemble a short hex snippet as 16/32/64-bit x86 with resolved branch and RIP-relative targets. | Check what the bytes at a hooked address decode to. |
+| `x86_assemble` | Re-encode existing machine code at a new address, fixing relative branches and RIP-relative operands. | Move stolen prologue bytes into a trampoline. |
+| `signature_generate` | Build the shortest wildcarded byte signature that is unique in a whole file, from a file offset or PE RVA. | Make an update-resistant pattern for a function found in IDA. |
 | `hash_compute` | Compute JOAAT, FNV-1/1a, MurmurHash3, xxHash, djb2 or sdbm hashes with optional seed and ASCII case folding. | Get the JOAAT hash an engine uses for an asset name. |
 
 ## Hashing and data decoding
@@ -232,6 +235,11 @@ The Windows administration tools in this section require Windows. `system_info` 
 | `file_trash` | Move a path to the OS Recycle Bin or Trash; `permanent: true` explicitly deletes it. | Remove a stale artifact while keeping it recoverable. |
 | `binary_pattern_search` | Search binary files for hex byte patterns with `??` wildcards. | Locate an instruction signature in a binary. |
 | `pe_inspect` | Inspect an on-disk PE image's headers, sections, imports, exports, and certificate-table presence. | Understand a binary's architecture and dependencies. |
+| `pe_debug_info` | Read the CodeView record (PDB path, GUID, age) and build symbol-server URLs. | Fetch the matching PDB with `http_download_file`. |
+| `pe_resources` | List the resource tree and decode version info and the manifest. | Confirm a binary's exact version and requested privileges. |
+| `pe_runtime_functions` | List x64 function boundaries and unwind data from `.pdata`, or find the function containing an RVA. | Find where a function starts and ends without opening IDA. |
+| `elf_inspect` | Inspect ELF headers, segments, sections, dynamic imports/exports, symbols, and build ID. | Check a Linux build's dependencies and entry point. |
+| `macho_inspect` | Inspect Mach-O and universal binaries: CPU, segments, libraries, imports/exports, UUID. | Check which architectures a macOS binary ships. |
 | `image_inspect` | Read image dimensions, format, transparency hints, and EXIF tags. | Check an asset's dimensions before use. |
 | `text_transcode` | Convert UTF-8 or BOM-marked UTF-16 encoding and line endings atomically. | Make a Windows text file UTF-8 with LF endings. |
 
@@ -276,3 +284,15 @@ Addresses accept an integer string, a loaded module name, or `module+offset` / `
 
 These tools need `PROCESS_QUERY_INFORMATION` and `PROCESS_VM_READ` and are strictly read-only: they never write to, suspend, or inject into the target. Memory changes while it is read, so results are a point-in-time view.
 
+## Desktop windows, screen capture, and clipboard
+
+| Tool | What to use it for | Example use case |
+| --- | --- | --- |
+| `window_list` | List top-level windows in z-order with handle, title, class, PID, process name, and frame rectangle. | Find the `hwnd` of a game window by process name before capturing it. |
+| `screen_capture` | Save the whole desktop, a region, or one window as PNG. | Capture a window before and after a change and diff the shots with `image_compare`. |
+| `clipboard_get` | Read clipboard formats, text, copied file paths, and save a clipboard image as PNG. | Pick up a screenshot the user just copied and analyse the saved PNG. |
+| `clipboard_set` | Replace the clipboard with Unicode text. | Hand a generated pattern or address back to the user for pasting. |
+
+Coordinates and sizes are physical pixels on the virtual desktop, so they match across scaled monitors; negative coordinates are normal for displays left of or above the primary one. `window_list` reports the visible frame drawn by DWM and, by default, skips hidden, cloaked (for example, suspended UWP apps or other virtual desktops) and untitled windows. `screen_capture` with an `hwnd` uses `PrintWindow` by default, which renders the window even when it is covered; some GPU-accelerated or protected windows render black that way, so retry with `method: "screen"` to copy the pixels as displayed. Regions are clipped to the displays, minimized windows cannot be captured, and captures are capped at 64 megapixels. Outputs are written atomically and never replace an existing file unless `overwrite` is true.
+
+These tools need an interactive desktop session; services and other non-interactive sessions see an empty desktop. `clipboard_set` replaces whatever the clipboard held, including non-text formats.

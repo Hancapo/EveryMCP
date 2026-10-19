@@ -56,7 +56,9 @@ fn elf_inspect(path: &Path, bytes: &[u8], limit: usize) -> Result<Value, String>
     let exports: Vec<_> = elf
         .dynsyms
         .iter()
-        .filter(|s| s.st_shndx != 0 && s.st_bind() != elf::sym::STB_LOCAL && named(s, &elf.dynstrtab))
+        .filter(|s| {
+            s.st_shndx != 0 && s.st_bind() != elf::sym::STB_LOCAL && named(s, &elf.dynstrtab)
+        })
         .take(limit)
         .map(|s| symbol(&s, &elf.dynstrtab))
         .collect();
@@ -73,20 +75,27 @@ fn elf_inspect(path: &Path, bytes: &[u8], limit: usize) -> Result<Value, String>
         .flatten()
         .filter_map(Result::ok)
         .find(|n| n.n_type == elf::note::NT_GNU_BUILD_ID)
-        .map(|n| n.desc.iter().map(|b| format!("{b:02x}")).collect::<String>());
+        .map(|n| {
+            n.desc
+                .iter()
+                .map(|b| format!("{b:02x}"))
+                .collect::<String>()
+        });
     let truncated = elf.program_headers.len() > limit
         || elf.section_headers.len() > limit
         || imports.len() >= limit
         || exports.len() >= limit
         || symbols.len() >= limit;
-    Ok(json!({"path":path.to_string_lossy(),"sizeBytes":bytes.len(),"is64Bit":elf.is_64,
+    Ok(
+        json!({"path":path.to_string_lossy(),"sizeBytes":bytes.len(),"is64Bit":elf.is_64,
         "endian":if elf.little_endian {"little"} else {"big"},"type":elf::header::et_to_str(h.e_type),
         "machine":elf::header::machine_to_str(h.e_machine),"machineId":h.e_machine,"entry":hex(elf.entry),
         "interpreter":elf.interpreter,"soname":elf.soname,"neededLibraries":elf.libraries,
         "runpaths":elf.runpaths,"rpaths":elf.rpaths,"buildId":build_id,
         "segmentCount":elf.program_headers.len(),"segments":segments,
         "sectionCount":elf.section_headers.len(),"sections":sections,
-        "imports":imports,"exports":exports,"symbols":symbols,"truncated":truncated}))
+        "imports":imports,"exports":exports,"symbols":symbols,"truncated":truncated}),
+    )
 }
 
 fn version_string(raw: u32) -> String {
@@ -123,12 +132,16 @@ fn macho_value(macho: &MachO, limit: usize) -> Result<Value, String> {
             .sections()
             .map_err(|e| io_error("Invalid Mach-O section", e))?
             .iter()
-            .map(|(s, _)| json!({"name":s.name().unwrap_or(""),"address":hex(s.addr),"sizeBytes":s.size,
-                "offset":s.offset,"flags":format!("0x{:x}",s.flags)}))
+            .map(|(s, _)| {
+                json!({"name":s.name().unwrap_or(""),"address":hex(s.addr),"sizeBytes":s.size,
+                "offset":s.offset,"flags":format!("0x{:x}",s.flags)})
+            })
             .collect();
-        segments.push(json!({"name":segment.name().unwrap_or(""),"virtualAddress":hex(segment.vmaddr),
+        segments.push(
+            json!({"name":segment.name().unwrap_or(""),"virtualAddress":hex(segment.vmaddr),
             "virtualSize":segment.vmsize,"fileOffset":segment.fileoff,"fileSize":segment.filesize,
-            "maxProtection":segment.maxprot,"initProtection":segment.initprot,"sections":sections}));
+            "maxProtection":segment.maxprot,"initProtection":segment.initprot,"sections":sections}),
+        );
     }
     let mut uuid = None;
     let mut build = Value::Null;
@@ -136,7 +149,14 @@ fn macho_value(macho: &MachO, limit: usize) -> Result<Value, String> {
         match &command.command {
             mach::load_command::CommandVariant::Uuid(u) => {
                 let s: String = u.uuid.iter().map(|b| format!("{b:02X}")).collect();
-                uuid = Some(format!("{}-{}-{}-{}-{}", &s[..8], &s[8..12], &s[12..16], &s[16..20], &s[20..]));
+                uuid = Some(format!(
+                    "{}-{}-{}-{}-{}",
+                    &s[..8],
+                    &s[8..12],
+                    &s[12..16],
+                    &s[16..20],
+                    &s[20..]
+                ));
             }
             mach::load_command::CommandVariant::BuildVersion(b) => {
                 build = json!({"platform":platform_name(b.platform),"minOs":version_string(b.minos),"sdk":version_string(b.sdk)});
@@ -158,12 +178,14 @@ fn macho_value(macho: &MachO, limit: usize) -> Result<Value, String> {
         .take(limit)
         .map(|i| json!({"name":i.name,"dylib":i.dylib,"lazy":i.is_lazy,"weak":i.is_weak,"address":hex(i.address)}))
         .collect();
-    Ok(json!({"is64Bit":macho.is_64,"endian":if macho.little_endian {"little"} else {"big"},
+    Ok(
+        json!({"is64Bit":macho.is_64,"endian":if macho.little_endian {"little"} else {"big"},
         "cpu":arch_name(h.cputype, h.cpusubtype),"fileType":mach::header::filetype_to_str(h.filetype),
         "flags":format!("0x{:x}",h.flags),"loadCommandCount":h.ncmds,"entry":hex(macho.entry),"name":macho.name,
         "uuid":uuid,"buildVersion":build,"libraries":macho.libs.iter().filter(|l| **l != "self").collect::<Vec<_>>(),
         "rpaths":macho.rpaths,"segments":segments,"imports":imports,"exports":exports,
-        "truncated":imports.len()>=limit || exports.len()>=limit}))
+        "truncated":imports.len()>=limit || exports.len()>=limit}),
+    )
 }
 
 fn macho_inspect(path: &Path, bytes: &[u8], args: &Value, limit: usize) -> Result<Value, String> {
@@ -176,11 +198,22 @@ fn macho_inspect(path: &Path, bytes: &[u8], args: &Value, limit: usize) -> Resul
             Ok(value)
         }
         Mach::Fat(fat) => {
-            let arches = fat.arches().map_err(|e| io_error("Invalid fat header", e))?;
-            let index = optional_u64(args, "arch", 0, arches.len().saturating_sub(1) as u64)? as usize;
-            let listed: Vec<_> = arches.iter().map(|a| json!({"cpu":arch_name(a.cputype, a.cpusubtype),
-                "offset":a.offset,"sizeBytes":a.size,"align":a.align})).collect();
-            let mut value = match fat.get(index).map_err(|e| io_error("Invalid fat slice", e))? {
+            let arches = fat
+                .arches()
+                .map_err(|e| io_error("Invalid fat header", e))?;
+            let index =
+                optional_u64(args, "arch", 0, arches.len().saturating_sub(1) as u64)? as usize;
+            let listed: Vec<_> = arches
+                .iter()
+                .map(|a| {
+                    json!({"cpu":arch_name(a.cputype, a.cpusubtype),
+                "offset":a.offset,"sizeBytes":a.size,"align":a.align})
+                })
+                .collect();
+            let mut value = match fat
+                .get(index)
+                .map_err(|e| io_error("Invalid fat slice", e))?
+            {
                 SingleArch::MachO(macho) => macho_value(&macho, limit)?,
                 SingleArch::Archive(_) => json!({"archive":true}),
             };

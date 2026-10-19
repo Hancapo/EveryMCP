@@ -267,6 +267,47 @@ pub fn list() -> Vec<Value> {
     );
     add_extra(
         &mut tools,
+        "x86_disasm",
+        "Disassemble hex machine code (up to 64 KiB) as 16/32/64-bit x86 (bits defaults to 64) at a virtual address. syntax is intel (default), nasm, masm, gas or fast. Returns each instruction's address, bytes, text, mnemonic, flow control and resolved branch or RIP-relative targets; stops after limit instructions (default 1000).",
+        &[("code", "string")],
+        &[
+            ("bits", "integerNumber"),
+            ("address", "integer"),
+            ("syntax", "string"),
+            ("limit", "integerNumber"),
+        ],
+    );
+    add_extra(
+        &mut tools,
+        "x86_assemble",
+        "Re-encode existing hex machine code (not assembly text) from sourceAddress to targetAddress, fixing relative branches, calls and RIP-relative operands so relocated patch bytes still reach the same targets; branches may grow. dontFixBranches keeps them as decoded. Fails on bytes that do not decode as valid instructions.",
+        &[("code", "string")],
+        &[
+            ("bits", "integerNumber"),
+            ("sourceAddress", "integer"),
+            ("targetAddress", "integer"),
+            ("dontFixBranches", "boolean"),
+        ],
+    );
+    add_extra(
+        &mut tools,
+        "signature_generate",
+        "Build the shortest byte signature, starting at one instruction, that is unique in a whole file ('path' up to 256 MiB, addressed by file 'offset' or PE 'rva') or in hex 'code' (up to 64 KiB, from 'offset'). Grows one decoded instruction at a time up to maxBytes (default 128). Branch, call and RIP-relative operand bytes are wildcarded unless exactOperands=true. Returns code-style (??), IDA-style (?) and x/? mask forms, matchCount and whether uniqueness was reached.",
+        &[],
+        &[
+            ("path", "string"),
+            ("rva", "integer"),
+            ("code", "string"),
+            ("offset", "integerNumber"),
+            ("maxBytes", "integerNumber"),
+            ("bits", "integerNumber"),
+            ("address", "integer"),
+            ("minInstructions", "integerNumber"),
+            ("exactOperands", "boolean"),
+        ],
+    );
+    add_extra(
+        &mut tools,
         "pe_relocation_apply",
         "Apply PE HIGHLOW (32-bit) or DIR64 (64-bit) base relocation delta, wrapping to field width.",
         &[

@@ -88,7 +88,10 @@ fn disasm(args: &Value) -> Result<Value, String> {
     if code.len() > MAX_CODE_BYTES {
         return Err("'code' must be at most 64 KiB.".into());
     }
-    let syntax = args.get("syntax").and_then(Value::as_str).unwrap_or("intel");
+    let syntax = args
+        .get("syntax")
+        .and_then(Value::as_str)
+        .unwrap_or("intel");
     let ip = parse_ip(args, "address", 0)?;
     let limit = input::optional_int(args, "limit")?.unwrap_or(1000).max(1) as usize;
     let mut decoder = Decoder::with_ip(bits, &code, ip, DecoderOptions::NONE);
@@ -116,9 +119,11 @@ fn disasm(args: &Value) -> Result<Value, String> {
         rows.push(row);
     }
     let decoded = decoder.position();
-    Ok(json!({"bits":bits,"address":format!("0x{ip:x}"),"instructionCount":rows.len(),
+    Ok(
+        json!({"bits":bits,"address":format!("0x{ip:x}"),"instructionCount":rows.len(),
         "instructions":rows,"invalidCount":invalid,"decodedBytes":decoded,
-        "remainingBytes":code.len()-decoded}))
+        "remainingBytes":code.len()-decoded}),
+    )
 }
 
 /// Re-encodes a block of machine code at a new base address, fixing up relative
@@ -156,52 +161,118 @@ fn assemble(args: &Value) -> Result<Value, String> {
         BlockEncoderOptions::DONT_FIX_BRANCHES
     };
     let block = InstructionBlock::new(&instructions, target_ip);
-    let result = BlockEncoder::encode(bits, block, options)
-        .map_err(|e| format!("Encoding failed: {e}"))?;
-    Ok(json!({"bits":bits,"sourceAddress":format!("0x{source_ip:x}"),
+    let result =
+        BlockEncoder::encode(bits, block, options).map_err(|e| format!("Encoding failed: {e}"))?;
+    Ok(
+        json!({"bits":bits,"sourceAddress":format!("0x{source_ip:x}"),
         "targetAddress":format!("0x{target_ip:x}"),"instructionCount":instructions.len(),
         "bytes":format_hex(&result.code_buffer),"byteCount":result.code_buffer.len(),
-        "rewritten":result.code_buffer != code && target_ip != source_ip}))
+        "rewritten":result.code_buffer != code && target_ip != source_ip}),
+    )
 }
 
-/// Produces the shortest wildcarded signature that uniquely matches the bytes at
-/// `offset`/`rva`, wildcarding relative and RIP-relative operand bytes so the
-/// pattern survives rebasing and nearby edits.
+const MAX_SIGNATURE_FILE: u64 = 256 * 1024 * 1024;
+
+/// Loads the bytes a signature must be unique in and the offset it starts at:
+/// either hex `code`, or a file `path` addressed by file `offset` or PE `rva`.
+fn signature_source(args: &Value) -> Result<(Vec<u8>, usize), String> {
+    let offset = input::optional_int(args, "offset")?;
+    let rva = args
+        .get("rva")
+        .map(|_| input::big_integer(args, "rva"))
+        .transpose()?;
+    let (code, start) = match (args.get("code"), args.get("path")) {
+        (Some(_), None) => {
+            if rva.is_some() {
+                return Err("'rva' requires 'path'.".into());
+            }
+            let code = parse_hex(input::string(args, "code")?)?;
+            if code.len() > MAX_CODE_BYTES {
+                return Err("'code' must be at most 64 KiB.".into());
+            }
+            (code, i64::from(offset.unwrap_or(0)))
+        }
+        (None, Some(_)) => {
+            let path = std::path::Path::new(input::string(args, "path")?);
+            let metadata =
+                std::fs::metadata(path).map_err(|e| format!("Cannot inspect file: {e}"))?;
+            if !metadata.is_file() || metadata.len() > MAX_SIGNATURE_FILE {
+                return Err("'path' must be a file of at most 256 MiB.".into());
+            }
+            let code = std::fs::read(path).map_err(|e| format!("Cannot read file: {e}"))?;
+            let start = match (offset, rva) {
+                (Some(offset), None) => i64::from(offset),
+                (None, Some(rva)) => {
+                    let rva = u32::try_from(rva).map_err(|_| "'rva' must be a 32-bit RVA.")?;
+                    i64::from(pe_rva_to_offset(&code, rva)?)
+                }
+                _ => return Err("With 'path', supply exactly one of 'offset' or 'rva'.".into()),
+            };
+            (code, start)
+        }
+        _ => return Err("Supply exactly one of 'code' or 'path'.".into()),
+    };
+    if start < 0 || start as usize >= code.len() {
+        return Err("The signature start must index a byte within the input.".into());
+    }
+    Ok((code, start as usize))
+}
+
+fn pe_rva_to_offset(bytes: &[u8], rva: u32) -> Result<u32, String> {
+    let pe = goblin::pe::PE::parse(bytes).map_err(|e| format!("'rva' needs a PE image: {e}"))?;
+    pe.sections
+        .iter()
+        .find_map(|s| {
+            let delta = rva.checked_sub(s.virtual_address)?;
+            (delta < s.virtual_size.max(s.size_of_raw_data) && delta < s.size_of_raw_data)
+                .then(|| s.pointer_to_raw_data + delta)
+        })
+        .ok_or_else(|| format!("RVA 0x{rva:x} is not backed by file data in any section."))
+}
+
+/// Produces the shortest wildcarded signature that uniquely matches the bytes at the
+/// start offset, wildcarding relative and RIP-relative operand bytes so the pattern
+/// survives rebasing and nearby edits. Uniqueness is checked against the whole input.
 fn signature_generate(args: &Value) -> Result<Value, String> {
     let bits = bitness(args)?;
-    let code = parse_hex(input::string(args, "code")?)?;
-    if code.is_empty() {
-        return Err("'code' must contain at least one byte.".into());
+    let (code, start) = signature_source(args)?;
+    let min_instructions = input::optional_int(args, "minInstructions")?
+        .unwrap_or(1)
+        .max(1) as usize;
+    let max_bytes = input::optional_int(args, "maxBytes")?.unwrap_or(128);
+    if !(1..=1024).contains(&max_bytes) {
+        return Err("'maxBytes' must be between 1 and 1024.".into());
     }
-    if code.len() > MAX_CODE_BYTES {
-        return Err("'code' must be at most 64 KiB.".into());
-    }
-    let start = input::optional_int(args, "offset")?.unwrap_or(0);
-    if start < 0 || start as usize >= code.len() {
-        return Err("'offset' must index a byte within 'code'.".into());
-    }
-    let start = start as usize;
-    let min_instructions = input::optional_int(args, "minInstructions")?.unwrap_or(1).max(1) as usize;
+    let max_bytes = max_bytes as usize;
     let wildcard_operands = !input::optional_bool(args, "exactOperands").unwrap_or(false);
     let base_ip = parse_ip(args, "address", 0)?;
     // Decode from the signature start; mark operand bytes that depend on placement.
-    let region = &code[start..];
-    let mut decoder = Decoder::with_ip(bits, region, base_ip.wrapping_add(start as u64), DecoderOptions::NONE);
+    let region = &code[start..code.len().min(start + max_bytes + 15)];
+    let mut decoder = Decoder::with_ip(
+        bits,
+        region,
+        base_ip.wrapping_add(start as u64),
+        DecoderOptions::NONE,
+    );
     let mut instruction = Instruction::default();
     // Each pattern byte: Some(b) fixed, None wildcard.
     let mut pattern: Vec<Option<u8>> = Vec::new();
     let mut instruction_count = 0usize;
+    // Positions still matching the pattern; the set only narrows as the pattern grows.
+    let mut candidates: Option<Vec<usize>> = None;
     while decoder.can_decode() {
         decoder.decode_out(&mut instruction);
-        if instruction.is_invalid() {
+        if instruction.is_invalid() || pattern.len() + instruction.len() > max_bytes {
             break;
         }
         let offsets = decoder.get_constant_offsets(&instruction);
-        let length = instruction.len();
         let instruction_start = pattern.len();
-        for i in 0..length {
-            pattern.push(Some(region[instruction_start + i]));
-        }
+        pattern.extend(
+            region[instruction_start..instruction_start + instruction.len()]
+                .iter()
+                .copied()
+                .map(Some),
+        );
         if wildcard_operands {
             let wildcard_relative = matches!(
                 instruction.flow_control(),
@@ -223,8 +294,16 @@ fn signature_generate(args: &Value) -> Result<Value, String> {
             }
         }
         instruction_count += 1;
-        // Grow until the pattern is unique in the whole image and covers the minimum.
-        if instruction_count >= min_instructions && is_unique(&code, &pattern) {
+        let narrowed: Vec<usize> = match candidates.take() {
+            None => find_matches(&code, &pattern),
+            Some(previous) => previous
+                .into_iter()
+                .filter(|&p| p + pattern.len() <= code.len() && matches_at(&code, &pattern, p))
+                .collect(),
+        };
+        let unique = narrowed.len() == 1;
+        candidates = Some(narrowed);
+        if instruction_count >= min_instructions && unique {
             break;
         }
     }
@@ -235,7 +314,7 @@ fn signature_generate(args: &Value) -> Result<Value, String> {
     while matches!(pattern.last(), Some(None)) {
         pattern.pop();
     }
-    let unique = is_unique(&code, &pattern);
+    let match_count = find_matches(&code, &pattern).len();
     let ida = pattern
         .iter()
         .map(|b| b.map_or("?".to_owned(), |v| format!("{v:02X}")))
@@ -250,9 +329,11 @@ fn signature_generate(args: &Value) -> Result<Value, String> {
         .iter()
         .map(|b| if b.is_some() { 'x' } else { '?' })
         .collect();
-    Ok(json!({"bits":bits,"offset":start,"instructionCount":instruction_count,
+    Ok(
+        json!({"bits":bits,"offset":start,"searchedBytes":code.len(),"instructionCount":instruction_count,
         "byteLength":pattern.len(),"wildcardCount":pattern.iter().filter(|b| b.is_none()).count(),
-        "unique":unique,"pattern":code_style,"idaPattern":ida,"mask":mask}))
+        "unique":match_count == 1,"matchCount":match_count,"pattern":code_style,"idaPattern":ida,"mask":mask}),
+    )
 }
 
 fn matches_at(code: &[u8], pattern: &[Option<u8>], position: usize) -> bool {
@@ -262,18 +343,24 @@ fn matches_at(code: &[u8], pattern: &[Option<u8>], position: usize) -> bool {
         .all(|(i, byte)| byte.is_none_or(|v| code[position + i] == v))
 }
 
-fn is_unique(code: &[u8], pattern: &[Option<u8>]) -> bool {
+/// Every position where `pattern` matches, anchored on its first fixed byte.
+fn find_matches(code: &[u8], pattern: &[Option<u8>]) -> Vec<usize> {
     if pattern.len() > code.len() {
-        return false;
+        return Vec::new();
     }
-    let mut hits = 0;
-    for position in 0..=code.len() - pattern.len() {
-        if matches_at(code, pattern, position) {
-            hits += 1;
-            if hits > 1 {
-                return false;
-            }
-        }
-    }
-    hits == 1
+    let last = code.len() - pattern.len();
+    let Some((anchor, value)) = pattern
+        .iter()
+        .enumerate()
+        .find_map(|(i, b)| b.map(|v| (i, v)))
+    else {
+        return (0..=last).collect();
+    };
+    code[anchor..=last + anchor]
+        .iter()
+        .enumerate()
+        .filter(|&(_, &byte)| byte == value)
+        .map(|(p, _)| p)
+        .filter(|&p| matches_at(code, pattern, p))
+        .collect()
 }

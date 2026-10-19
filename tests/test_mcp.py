@@ -67,7 +67,7 @@ class McpTests(unittest.TestCase):
         self.assertEqual(discovered["_meta"]["io.modelcontextprotocol/serverInfo"]["name"], "EveryMCP")
         listed = self.request("tools/list", self.modern_params())["result"]
         self.assertEqual(listed["resultType"], "complete")
-        self.assertEqual(len(listed["tools"]), 157)
+        self.assertEqual(len(listed["tools"]), 169)
         called = self.request("tools/call", self.modern_params(name="add", arguments={
             "firstNumber": 2, "secondNumber": 3}))["result"]
         self.assertEqual(called["resultType"], "complete")
@@ -121,7 +121,7 @@ class McpTests(unittest.TestCase):
         })
         self.assertEqual(response["result"]["protocolVersion"], "2025-06-18")
         listed = self.request("tools/list", {"_meta": {"progressToken": 2}})
-        self.assertEqual(len(listed["result"]["tools"]), 157)
+        self.assertEqual(len(listed["result"]["tools"]), 169)
 
     def test_initialize_and_catalog(self):
         response = self.request("initialize", {"protocolVersion": "2025-06-18", "capabilities": {},
@@ -171,7 +171,10 @@ class McpTests(unittest.TestCase):
                             "process_connections", "process_memory_map", "pe_dependencies", "binary_strings",
                             "binary_entropy", "minidump_inspect", "image_compare", "hash_compute",
                             "hash_dictionary_match", "data_transform", "process_memory_read",
-                            "pointer_chain_resolve", "process_pattern_scan"})
+                            "pointer_chain_resolve", "process_pattern_scan", "window_list",
+                            "screen_capture", "clipboard_get", "clipboard_set", "x86_disasm",
+                            "x86_assemble", "signature_generate", "pe_debug_info", "pe_resources",
+                            "pe_runtime_functions", "elf_inspect", "macho_inspect"})
         for tool in tools:
             self.assertEqual(tool["inputSchema"]["type"], "object")
         pe = next(tool for tool in tools if tool["name"] == "pe_address_map")

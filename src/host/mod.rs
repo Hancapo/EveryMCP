@@ -4,6 +4,7 @@ mod binary_tools;
 mod codec;
 mod data;
 mod dependencies;
+mod desktop;
 mod directory_tools;
 mod file_extra;
 mod files;
@@ -15,6 +16,8 @@ mod locks;
 mod manifest;
 mod minidump;
 mod network;
+mod object_inspect;
+mod pe_extra;
 mod performance;
 mod process;
 mod process_dump;
@@ -69,6 +72,8 @@ pub fn execute(name: &str, args: &Value) -> Result<Value, String> {
         | "image_inspect"
         | "text_transcode" => file_extra::execute(name, args),
         "pe_inspect" => binary_inspect::pe_inspect(args),
+        "pe_debug_info" | "pe_resources" | "pe_runtime_functions" => pe_extra::execute(name, args),
+        "elf_inspect" | "macho_inspect" => object_inspect::execute(name, args),
         "data_transform" | "hash_dictionary_match" => codec::execute(name, args),
         "process_module_dump" => process_dump::dump(args),
         "process_memory_read" | "pointer_chain_resolve" | "process_pattern_scan" => {
@@ -85,6 +90,9 @@ pub fn execute(name: &str, args: &Value) -> Result<Value, String> {
         "artifact_manifest" | "manifest_diff" => manifest::execute(name, args),
         "diagnostics_parse" | "test_results_parse" => reports::execute(name, args),
         "file_open" => shell::open(args),
+        "window_list" | "screen_capture" | "clipboard_get" | "clipboard_set" => {
+            desktop::execute(name, args)
+        }
         "process_modules" | "port_owner" | "service_get" | "service_control" | "eventlog_query"
         | "registry_read" | "environment_get" | "powershell_run" | "file_signature"
         | "scheduled_task" | "eventlog_follow" | "acl_get" => windows::execute(name, args),

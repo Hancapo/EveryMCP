@@ -9,6 +9,7 @@ mod re;
 mod re_extra;
 mod scalar;
 mod vector_extra;
+mod x86;
 
 pub fn execute(name: &str, args: &Value) -> Result<Value, String> {
     if !args.is_object() {
@@ -28,6 +29,10 @@ pub fn execute(name: &str, args: &Value) -> Result<Value, String> {
         | "process_memory_read"
         | "pointer_chain_resolve"
         | "process_pattern_scan"
+        | "window_list"
+        | "screen_capture"
+        | "clipboard_get"
+        | "clipboard_set"
         | "directory_size"
         | "file_duplicates"
         | "directory_sync"
@@ -92,7 +97,12 @@ pub fn execute(name: &str, args: &Value) -> Result<Value, String> {
         | "image_inspect"
         | "text_transcode"
         | "data_transform"
-        | "hash_dictionary_match" => crate::host::execute(name, args),
+        | "hash_dictionary_match"
+        | "pe_debug_info"
+        | "pe_resources"
+        | "pe_runtime_functions"
+        | "elf_inspect"
+        | "macho_inspect" => crate::host::execute(name, args),
         "artifact_manifest" | "manifest_diff" | "diagnostics_parse" | "test_results_parse" => {
             crate::host::execute(name, args)
         }
@@ -121,6 +131,7 @@ pub fn execute(name: &str, args: &Value) -> Result<Value, String> {
         | "packed_vertex_decode"
         | "crc_compute" => re_extra::execute(name, args),
         "hash_compute" => hash::execute(name, args),
+        "x86_disasm" | "x86_assemble" | "signature_generate" => x86::execute(name, args),
         "compose_transform"
         | "decompose_transform"
         | "rotation_convert"

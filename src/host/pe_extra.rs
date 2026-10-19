@@ -1,6 +1,6 @@
 use super::{io_error, optional_str, optional_u64, required_str};
 use goblin::pe::PE;
-use goblin::pe::exception::{UnwindHandler, UnwindOperation};
+use goblin::pe::exception::{Register, UnwindHandler, UnwindOperation};
 use serde_json::{Value, json};
 use std::fs;
 use std::path::Path;
@@ -42,22 +42,6 @@ pub(super) fn rva_to_offset(pe: &PE, rva: u32) -> Option<u32> {
         let span = s.virtual_size.max(s.size_of_raw_data);
         let delta = rva.checked_sub(s.virtual_address)?;
         (delta < span && delta < s.size_of_raw_data).then(|| s.pointer_to_raw_data + delta)
-    })
-}
-
-pub(super) fn offset_to_rva(pe: &PE, offset: u32) -> Option<u32> {
-    let headers = pe
-        .header
-        .optional_header
-        .map(|h| h.windows_fields.size_of_headers)
-        .unwrap_or(0);
-    if offset < headers {
-        return Some(offset);
-    }
-    pe.sections.iter().find_map(|s| {
-        let delta = offset.checked_sub(s.pointer_to_raw_data)?;
-        (delta < s.size_of_raw_data && delta < s.virtual_size.max(s.size_of_raw_data))
-            .then(|| s.virtual_address + delta)
     })
 }
 
@@ -154,10 +138,17 @@ fn debug_info(path: &Path, pe: &PE, args: &Value) -> Result<Value, String> {
                 "symbolServerUrl":format!("{server}/{pdb_name}/{key}/{pdb_name}")});
         }
     }
-    Ok(json!({"path":path.to_string_lossy(),"timeDateStamp":format!("0x{timestamp:08X}"),
+    Ok(
+        json!({"path":path.to_string_lossy(),"timeDateStamp":format!("0x{timestamp:08X}"),
         "sizeOfImage":format!("0x{size_of_image:x}"),"debugEntries":entries,"codeView":codeview,
         "imageSymbolServerKey":image_key,
-        "imageSymbolServerUrl":format!("{server}/{image_name}/{image_key}/{image_name}")}))
+        "imageSymbolServerUrl":format!("{server}/{image_name}/{image_key}/{image_name}")}),
+    )
+}
+
+/// Formats a VS_FIXEDFILEINFO version pair. goblin's `file_version()` reads the date fields.
+fn version_quad(ms: u32, ls: u32) -> String {
+    format!("{}.{}.{}.{}", ms >> 16, ms & 0xffff, ls >> 16, ls & 0xffff)
 }
 
 fn resource_type_name(id: u32) -> Option<&'static str> {
@@ -226,8 +217,12 @@ impl ResourceWalk<'_> {
         if path.len() > 3 {
             return Err("Resource tree is deeper than three levels.".into());
         }
-        let named = self.u16_at(directory + 12).ok_or("Truncated resource directory.")?;
-        let ids = self.u16_at(directory + 14).ok_or("Truncated resource directory.")?;
+        let named = self
+            .u16_at(directory + 12)
+            .ok_or("Truncated resource directory.")?;
+        let ids = self
+            .u16_at(directory + 14)
+            .ok_or("Truncated resource directory.")?;
         for index in 0..(named as usize + ids as usize) {
             let entry = directory + 16 + index * 8;
             let name = self.u32_at(entry).ok_or("Truncated resource entry.")?;
@@ -240,7 +235,9 @@ impl ResourceWalk<'_> {
                 if self.resources.len() < self.limit {
                     let data = self.root + target as usize;
                     let rva = self.u32_at(data).ok_or("Truncated resource data entry.")?;
-                    let size = self.u32_at(data + 4).ok_or("Truncated resource data entry.")?;
+                    let size = self
+                        .u32_at(data + 4)
+                        .ok_or("Truncated resource data entry.")?;
                     let code_page = self.u32_at(data + 8).unwrap_or(0);
                     let kind = &path[0];
                     let type_name = kind
@@ -270,7 +267,8 @@ fn resources(path: &Path, bytes: &[u8], pe: &PE, args: &Value) -> Result<Value, 
             json!({"path":path.to_string_lossy(),"resourceCount":0,"resources":[],"versionInfo":null,"manifest":null,"truncated":false}),
         );
     };
-    let root = rva_to_offset(pe, table.virtual_address).ok_or("Resource directory is not mapped.")?;
+    let root =
+        rva_to_offset(pe, table.virtual_address).ok_or("Resource directory is not mapped.")?;
     let mut walk = ResourceWalk {
         bytes,
         root: root as usize,
@@ -284,7 +282,7 @@ fn resources(path: &Path, bytes: &[u8], pe: &PE, args: &Value) -> Result<Value, 
     if let Some(data) = &pe.resource_data {
         if let Some(info) = &data.version_info {
             let fixed = info.fixed_info.as_ref().filter(|f| f.is_valid()).map(|f| {
-                json!({"fileVersion":f.file_version().to_string(),"productVersion":f.product_version().to_string(),
+                json!({"fileVersion":version_quad(f.file_version_ms, f.file_version_ls),"productVersion":version_quad(f.product_version_ms, f.product_version_ls),
                     "fileFlags":format!("0x{:x}",f.file_flags & f.file_flags_mask),"fileOs":format!("0x{:x}",f.file_os),
                     "fileType":f.file_type})
             });
@@ -296,27 +294,40 @@ fn resources(path: &Path, bytes: &[u8], pe: &PE, args: &Value) -> Result<Value, 
         }
         if let Some(data) = &data.manifest_data {
             let text = String::from_utf8_lossy(data.data);
-            manifest = json!(text.trim_start_matches('\u{feff}').chars().take(65536).collect::<String>());
+            manifest = json!(
+                text.trim_start_matches('\u{feff}')
+                    .chars()
+                    .take(65536)
+                    .collect::<String>()
+            );
         }
     }
-    Ok(json!({"path":path.to_string_lossy(),"resourceDirectoryRva":format!("0x{:x}",table.virtual_address),
+    Ok(
+        json!({"path":path.to_string_lossy(),"resourceDirectoryRva":format!("0x{:x}",table.virtual_address),
         "resourceCount":walk.total,"resources":walk.resources,"versionInfo":version,"manifest":manifest,
-        "truncated":walk.total>walk.resources.len()}))
+        "truncated":walk.total>walk.resources.len()}),
+    )
+}
+
+fn register_name(register: Register) -> &'static str {
+    register.name().trim_start_matches('$')
 }
 
 fn unwind_operation(operation: &UnwindOperation) -> Value {
     match operation {
-        UnwindOperation::PushNonVolatile(r) => json!({"op":"push_nonvol","register":r.name()}),
+        UnwindOperation::PushNonVolatile(r) => {
+            json!({"op":"push_nonvol","register":register_name(*r)})
+        }
         UnwindOperation::Alloc(size) => json!({"op":"alloc","sizeBytes":size}),
         UnwindOperation::SetFPRegister => json!({"op":"set_fp_register"}),
         UnwindOperation::SaveNonVolatile(r, o) => {
-            json!({"op":"save_nonvol","register":r.name(),"offset":format!("{o:?}")})
+            json!({"op":"save_nonvol","register":register_name(*r),"offset":format!("{o:?}")})
         }
         UnwindOperation::SaveXMM(r, o) => {
-            json!({"op":"save_xmm","register":r.name(),"offset":format!("{o:?}")})
+            json!({"op":"save_xmm","register":register_name(*r),"offset":format!("{o:?}")})
         }
         UnwindOperation::SaveXMM128(r, o) => {
-            json!({"op":"save_xmm128","register":r.name(),"offset":format!("{o:?}")})
+            json!({"op":"save_xmm128","register":register_name(*r),"offset":format!("{o:?}")})
         }
         UnwindOperation::PushMachineFrame(code) => {
             json!({"op":"push_machine_frame","errorCode":code})
@@ -342,7 +353,9 @@ fn runtime_functions(path: &Path, pe: &PE, args: &Value) -> Result<Value, String
         return Err("pe_runtime_functions supports x64 (AMD64) images; .pdata layout differs on other machines.".into());
     }
     let Some(exceptions) = &pe.exception_data else {
-        return Ok(json!({"path":path.to_string_lossy(),"functionCount":0,"functions":[],"nextOffset":null}));
+        return Ok(
+            json!({"path":path.to_string_lossy(),"functionCount":0,"functions":[],"nextOffset":null}),
+        );
     };
     let describe = |function: goblin::pe::exception::RuntimeFunction| -> Value {
         let mut entry = json!({"begin":format!("0x{:x}",function.begin_address),"end":format!("0x{:x}",function.end_address),
@@ -375,7 +388,7 @@ fn runtime_functions(path: &Path, pe: &PE, args: &Value) -> Result<Value, String
                         }
                     });
                     entry["unwind"] = json!({"version":info.version,"prologSize":info.size_of_prolog,
-                        "frameRegister":(info.frame_register.0 != 0).then(|| info.frame_register.name()),
+                        "frameRegister":(info.frame_register.0 != 0).then(|| register_name(info.frame_register)),
                         "frameRegisterOffset":info.frame_register_offset,"codes":codes,"handler":handler});
                 }
             }
@@ -387,7 +400,9 @@ fn runtime_functions(path: &Path, pe: &PE, args: &Value) -> Result<Value, String
         let found = exceptions
             .find_function(rva)
             .map_err(|e| io_error("Invalid .pdata", e))?;
-        return Ok(json!({"path":path.to_string_lossy(),"rva":format!("0x{rva:x}"),"function":found.map(describe)}));
+        return Ok(
+            json!({"path":path.to_string_lossy(),"rva":format!("0x{rva:x}"),"function":found.map(describe)}),
+        );
     }
     let total = exceptions.len();
     let functions: Vec<_> = exceptions
@@ -397,5 +412,7 @@ fn runtime_functions(path: &Path, pe: &PE, args: &Value) -> Result<Value, String
         .map(|f| f.map(describe).map_err(|e| io_error("Invalid .pdata", e)))
         .collect::<Result<_, _>>()?;
     let next = (offset + functions.len() < total).then_some(offset + functions.len());
-    Ok(json!({"path":path.to_string_lossy(),"functionCount":total,"functions":functions,"nextOffset":next}))
+    Ok(
+        json!({"path":path.to_string_lossy(),"functionCount":total,"functions":functions,"nextOffset":next}),
+    )
 }
