@@ -8,6 +8,7 @@ mod numeric_extra;
 mod re;
 mod re_extra;
 mod scalar;
+mod struct_layout;
 mod vector_extra;
 mod x86;
 
@@ -102,7 +103,8 @@ pub fn execute(name: &str, args: &Value) -> Result<Value, String> {
         | "pe_resources"
         | "pe_runtime_functions"
         | "elf_inspect"
-        | "macho_inspect" => crate::host::execute(name, args),
+        | "macho_inspect"
+        | "binary_carve" => crate::host::execute(name, args),
         "artifact_manifest" | "manifest_diff" | "diagnostics_parse" | "test_results_parse" => {
             crate::host::execute(name, args)
         }
@@ -132,6 +134,7 @@ pub fn execute(name: &str, args: &Value) -> Result<Value, String> {
         | "crc_compute" => re_extra::execute(name, args),
         "hash_compute" => hash::execute(name, args),
         "x86_disasm" | "x86_assemble" | "signature_generate" => x86::execute(name, args),
+        "struct_layout" => struct_layout::execute(args),
         "compose_transform"
         | "decompose_transform"
         | "rotation_convert"

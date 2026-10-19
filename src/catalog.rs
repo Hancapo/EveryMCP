@@ -308,6 +308,21 @@ pub fn list() -> Vec<Value> {
     );
     add_extra(
         &mut tools,
+        "struct_layout",
+        "Lay out C structs and unions for an ABI (win64 default, win32, sysv64, sysv32): each field's offset, size and alignment (nested members dotted), bit-field storage units and bit offsets, padding gaps and sizeof. Understands typedefs, nested and anonymous structs/unions, enums, function pointers, #define constants in array sizes, #pragma pack, pack, alignas and packed/aligned attributes. name picks the struct (default: the last one defined). Optionally decodes 'data' hex, or bytes read from 'path' at 'offset', through the layout (endian little by default).",
+        &[("source", "string")],
+        &[
+            ("name", "string"),
+            ("abi", "string"),
+            ("pack", "integerNumber"),
+            ("data", "string"),
+            ("path", "string"),
+            ("offset", "integer"),
+            ("endian", "string"),
+        ],
+    );
+    add_extra(
+        &mut tools,
         "pe_relocation_apply",
         "Apply PE HIGHLOW (32-bit) or DIR64 (64-bit) base relocation delta, wrapping to field width.",
         &[

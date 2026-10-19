@@ -1,6 +1,6 @@
 # EveryMCP tool guide
 
-EveryMCP exposes 169 tools. This guide gives each tool's purpose and one practical use case. Call `tools/list` for the authoritative JSON schema, supported options, and current descriptions.
+EveryMCP exposes 171 tools. This guide gives each tool's purpose and one practical use case. Call `tools/list` for the authoritative JSON schema, supported options, and current descriptions.
 
 For MCP `2026-07-28`, `tools/list` includes the required `ttlMs` and `cacheScope` fields, allowing the static catalog to be cached for five minutes. Legacy `2025-06-18` responses retain their original shape.
 
@@ -85,6 +85,7 @@ Byte limits still apply: ZIP extraction is capped at 1 GiB, ZIP inspection retur
 | `x86_disasm` | Disassemble a short hex snippet as 16/32/64-bit x86 with resolved branch and RIP-relative targets. | Check what the bytes at a hooked address decode to. |
 | `x86_assemble` | Re-encode existing machine code at a new address, fixing relative branches and RIP-relative operands. | Move stolen prologue bytes into a trampoline. |
 | `signature_generate` | Build the shortest wildcarded byte signature that is unique in a whole file, from a file offset or PE RVA. | Make an update-resistant pattern for a function found in IDA. |
+| `struct_layout` | Lay out a C struct for win64, win32, sysv64 or sysv32: field offsets, bit-fields, padding and `sizeof`, optionally decoding bytes through it. | Check that a reconstructed struct matches the offsets the game code uses. |
 | `hash_compute` | Compute JOAAT, FNV-1/1a, MurmurHash3, xxHash, djb2 or sdbm hashes with optional seed and ASCII case folding. | Get the JOAAT hash an engine uses for an asset name. |
 
 ## Hashing and data decoding
@@ -257,6 +258,7 @@ The Windows administration tools in this section require Windows. `system_info` 
 | `pe_dependencies` | Inspect direct or recursive PE import candidates in explicit search paths. | Detect absent DLLs or a dependency with incompatible architecture. |
 | `binary_strings` | Extract bounded ASCII and UTF-16 strings with byte offsets and literal filtering. | Locate embedded paths or messages in a binary file. |
 | `binary_entropy` | Measure Shannon entropy per block in bits per byte. | Compare uniform and high-variation regions of a file. |
+| `binary_carve` | Find validated embedded PE, ELF, ZIP, PNG, DDS, gzip and zlib data with offsets and sizes. | Spot a packed DLL or texture hidden inside an executable or archive. |
 | `minidump_inspect` | Read minidump exception, thread, scalar register and module metadata. | Obtain an initial summary of a diagnostic dump. |
 | `image_compare` | Count RGBA pixels differing beyond a channel tolerance and optionally save a PNG mask. | Verify whether two rendered assets differ. |
 
