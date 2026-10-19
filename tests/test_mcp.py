@@ -67,7 +67,7 @@ class McpTests(unittest.TestCase):
         self.assertEqual(discovered["_meta"]["io.modelcontextprotocol/serverInfo"]["name"], "EveryMCP")
         listed = self.request("tools/list", self.modern_params())["result"]
         self.assertEqual(listed["resultType"], "complete")
-        self.assertEqual(len(listed["tools"]), 171)
+        self.assertEqual(len(listed["tools"]), 177)
         called = self.request("tools/call", self.modern_params(name="add", arguments={
             "firstNumber": 2, "secondNumber": 3}))["result"]
         self.assertEqual(called["resultType"], "complete")
@@ -121,7 +121,7 @@ class McpTests(unittest.TestCase):
         })
         self.assertEqual(response["result"]["protocolVersion"], "2025-06-18")
         listed = self.request("tools/list", {"_meta": {"progressToken": 2}})
-        self.assertEqual(len(listed["result"]["tools"]), 171)
+        self.assertEqual(len(listed["result"]["tools"]), 177)
 
     def test_initialize_and_catalog(self):
         response = self.request("initialize", {"protocolVersion": "2025-06-18", "capabilities": {},
@@ -175,7 +175,8 @@ class McpTests(unittest.TestCase):
                             "screen_capture", "clipboard_get", "clipboard_set", "x86_disasm",
                             "x86_assemble", "signature_generate", "pe_debug_info", "pe_resources",
                             "pe_runtime_functions", "elf_inspect", "macho_inspect", "binary_carve",
-                            "struct_layout"})
+                            "struct_layout", "bounding_volume", "mesh_inspect", "convex_hull",
+                            "polygon_triangulate", "expression_evaluate", "curve_fit"})
         for tool in tools:
             self.assertEqual(tool["inputSchema"]["type"], "object")
         pe = next(tool for tool in tools if tool["name"] == "pe_address_map")

@@ -1,6 +1,6 @@
 # EveryMCP tool guide
 
-EveryMCP exposes 171 tools. This guide gives each tool's purpose and one practical use case. Call `tools/list` for the authoritative JSON schema, supported options, and current descriptions.
+EveryMCP exposes 177 tools. This guide gives each tool's purpose and one practical use case. Call `tools/list` for the authoritative JSON schema, supported options, and current descriptions.
 
 For MCP `2026-07-28`, `tools/list` includes the required `ttlMs` and `cacheScope` fields, allowing the static catalog to be cached for five minutes. Legacy `2025-06-18` responses retain their original shape.
 
@@ -118,6 +118,10 @@ Byte limits still apply: ZIP extraction is capped at 1 GiB, ZIP inspection retur
 | `segment_intersect_2d` | Find the point or overlap of two closed 2D segments. | Detect crossing edges in a path. |
 | `polygon_measure_2d` | Measure signed area, centroid, and winding. | Check polygon orientation before triangulation. |
 | `frustum_test` | Classify a point, sphere, or AABB against a view frustum. | Decide whether a bound can be culled from a camera view. |
+| `bounding_volume` | Compute the AABB, exact minimum enclosing sphere, and a hull-based PCA OBB of 3D points. | Check the bounding sphere a model file stores against its vertices. |
+| `mesh_inspect` | Measure a triangle mesh and check it for holes, non-manifold edges, flipped faces, and degenerate or duplicate triangles. | Find out why an extracted model will not export as a closed solid. |
+| `convex_hull` | Build the 2D or 3D convex hull of a point set. | Generate a simple collision hull for a decoded mesh. |
+| `polygon_triangulate` | Triangulate a simple 2D polygon with holes by ear clipping. | Turn a navmesh or floor outline into renderable triangles. |
 
 ## Exact and numerical analysis
 
@@ -134,6 +138,8 @@ Byte limits still apply: ZIP extraction is capped at 1 GiB, ZIP inspection retur
 | `linear_system_solve` | Solve a square linear system and report residual error. | Fit coefficients from a small system of constraints. |
 | `descriptive_statistics` | Compute spread, quartiles, and optional correlation. | Compare benchmark distributions from two runs. |
 | `interpolate_samples` | Evaluate linear, Hermite, or Catmull-Rom scalar interpolation. | Sample a keyframe curve between stored points. |
+| `expression_evaluate` | Evaluate a math expression with variables, functions, and conditionals, once or over a sweep of inputs. | Compute a formula in one call instead of chaining arithmetic tools. |
+| `curve_fit` | Fit linear, polynomial, logarithmic, exponential, or power models by least squares with R². | Recover the falloff curve behind values sampled from a game. |
 
 ## General vectors and matrices
 
